@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+.navigation/
+
+# Machine specific: contains sdk.dir, must never be committed.
+local.properties
+
+# Keystores and secrets
+*.jks
+*.keystore
+
+# Native / NDK
+obj/
+libs/
+
+# OS
+.DS_Store
+Thumbs.db

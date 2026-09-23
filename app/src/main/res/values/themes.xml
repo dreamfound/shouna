@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Compose renders the entire UI, so the Activity theme only needs to be a
+      no-action-bar shell. Material 3 colour wiring lives in ShounaTheme
+      (see ui/theme/Theme.kt).
+    -->
+    <style name="Theme.Shouna" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

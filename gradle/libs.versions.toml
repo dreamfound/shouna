@@ -1,0 +1,49 @@
+[versions]
+# --- Build toolchain ---------------------------------------------------------
+# AGP 8.13 is the final 8.x line (2025-09). Its minimum AND default Gradle is 8.13,
+# minimum JDK is 17, and the maximum supported compileSdk is API 36.1.
+agp = "8.13.2"
+kotlin = "2.2.21"
+compileSdk = "36"
+minSdk = "24"
+targetSdk = "36"
+
+# --- AndroidX ---------------------------------------------------------------
+# PINNED ON PURPOSE: core-ktx 1.19.0 declares minCompileSdk=37 and
+# minAndroidGradlePluginVersion=9.1.0 in its AAR metadata, which is incompatible
+# with compileSdk 36 / AGP 8.13. 1.18.0 declares minCompileSdk=36 / AGP 8.9.1.
+coreKtx = "1.18.0"
+lifecycleRuntimeKtx = "2.10.0"
+activityCompose = "1.13.0"
+composeBom = "2025.12.01"
+
+# --- Test -------------------------------------------------------------------
+junit = "4.13.2"
+androidxJunit = "1.3.0"
+espressoCore = "3.7.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
+# Compose BOM keeps every androidx.compose.* artifact on one matching version set.
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# Since Kotlin 2.0 the Compose compiler ships with Kotlin itself and is enabled by
+# this plugin instead of `composeOptions.kotlinCompilerExtensionVersion`.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
