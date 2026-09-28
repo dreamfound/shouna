@@ -4,10 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 // Brand palette. Values are placeholders for the project seed colour - replace
 // them once the real design tokens are available.
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
+// F1-01：深色（FR-48 / NFR-16）为产品级撤销，Purple80 / PurpleGrey80 / Pink80 已删除。
 val Purple40 = Color(0xFF6650A4)
 val PurpleGrey40 = Color(0xFF625B71)
 val Pink40 = Color(0xFF7D5260)

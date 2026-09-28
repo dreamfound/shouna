@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="936" viewBox="0 0 680 936" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif">
+<title>收纳助手 V1 主流程图</title>
+<desc>从打开 App 到记录、查找、维护三条闭环的流程图，含位置留空分支与物品三态状态机。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<rect x="0" y="0" width="680" height="936" fill="#1B1B19"/>
+
+<text x="40" y="40" font-size="15" font-weight="500" fill="#F1EFE8" dominant-baseline="central">收纳助手 V1 · 主流程图</text>
+<text x="40" y="62" font-size="12" fill="#B4B2A9" dominant-baseline="central">记录为主线；位置可留空，录入过程零弹窗，F1 不引入新名词</text>
+
+<path d="M250 132 V156" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M250 224 V248" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M250 316 V340" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M250 396 V420" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M250 504 V528" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M250 596 V620" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<path d="M100 564 H60 V370 H96" fill="none" stroke="#B4B2A9" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<text x="66" y="466" font-size="11" fill="#B4B2A9" dominant-baseline="central">循环</text>
+
+<rect x="100" y="86" width="300" height="46" rx="8" fill="#444441" stroke="#B4B2A9" stroke-width="0.5"/>
+<text x="250" y="109" font-size="13" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">打开 App（冷启动）</text>
+<text x="424" y="109" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">无引导页，F1 自解释</text>
+
+<rect x="100" y="160" width="300" height="64" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
+<text x="250" y="184" font-size="13.5" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">P-HOME 首页 · F1</text>
+<text x="250" y="206" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">搜索框 / ＋记一件 / 一行摘要 / ⋯更多</text>
+<text x="424" y="180" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">打开 → 可录入 ≤ 2 次点击</text>
+<text x="424" y="200" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">4 个元素，零学习成本</text>
+
+<rect x="100" y="252" width="300" height="64" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
+<text x="250" y="276" font-size="13.5" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">P-ADD 快速录入 · F1</text>
+<text x="250" y="298" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">位置条已预填，不点开即无感</text>
+<text x="424" y="272" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">位置不是入场门票</text>
+<text x="424" y="292" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">唯一必填项 = 物品名称</text>
+
+<rect x="100" y="344" width="300" height="52" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
+<text x="250" y="362" font-size="13" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">输入物品名称（唯一必填）</text>
+<text x="250" y="380" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">自动聚焦；键盘回车即保存</text>
+<text x="424" y="370" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">别名 / 数量下沉 F2</text>
+
+<path d="M250 424 L380 464 L250 504 L120 464 Z" fill="#633806" stroke="#EF9F27" stroke-width="0.5"/>
+<text x="250" y="464" font-size="13" fill="#FAC775" text-anchor="middle" dominant-baseline="central">位置条是否留空？</text>
+<path d="M380 464 H404 V448 H420" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="412" y="438" font-size="11" fill="#5DCAA5" text-anchor="middle" dominant-baseline="central">是</text>
+<path d="M404 464 V508 H420" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="410" y="494" font-size="11" fill="#5DCAA5" dominant-baseline="central">否</text>
+
+<rect x="424" y="424" width="216" height="48" rx="8" fill="#0F6E56" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="532" y="442" font-size="12" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">是 → 落「未指定位置」</text>
+<text x="532" y="460" font-size="11" fill="#5DCAA5" text-anchor="middle" dominant-baseline="central">可事后在 F2 补位置</text>
+
+<rect x="424" y="484" width="216" height="48" rx="8" fill="#0F6E56" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="532" y="502" font-size="12" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">否 → 落位置条当前值</text>
+<text x="532" y="520" font-size="11" fill="#5DCAA5" text-anchor="middle" dominant-baseline="central">默认树最近使用节点</text>
+
+<rect x="100" y="532" width="300" height="64" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
+<text x="250" y="556" font-size="13.5" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">保存并继续录入 · F1</text>
+<text x="250" y="578" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">清空 + 保持聚焦，显示「已连续录入 N 件」</text>
+<text x="424" y="558" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">连续录入 5 件 ≤ 40 秒</text>
+<text x="424" y="578" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">位置 / 分类一律不弹窗</text>
+
+<rect x="100" y="624" width="300" height="52" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
+<text x="250" y="642" font-size="13" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">退出录入 → 回到首页</text>
+<text x="250" y="660" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">一行摘要件数 +1</text>
+<text x="424" y="646" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">⋯更多 → 位置浏览 / 归纳 / 设置</text>
+
+<text x="40" y="700" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">查找与维护闭环 —— 与记录共用同一份本地数据</text>
+
+<rect x="40" y="716" width="290" height="76" rx="10" fill="#0F6E56" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="52" y="738" font-size="13" fill="#9FE1CB" dominant-baseline="central">查找闭环 · F1</text>
+<text x="52" y="760" font-size="11.5" fill="#5DCAA5" dominant-baseline="central">输入即搜：名称 / 拼音首字母 / 全拼</text>
+<text x="52" y="778" font-size="11.5" fill="#5DCAA5" dominant-baseline="central">结果行：名称 + 完整路径 + 最后确认时间</text>
+
+<rect x="350" y="716" width="290" height="76" rx="10" fill="#0F6E56" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="362" y="738" font-size="13" fill="#9FE1CB" dominant-baseline="central">维护闭环 · F1 + F2</text>
+<text x="362" y="760" font-size="11.5" fill="#5DCAA5" dominant-baseline="central">「还在」刷新确认时间；「不在了」置已不在</text>
+<text x="362" y="778" font-size="11.5" fill="#5DCAA5" dominant-baseline="central">⋯更多 → 归纳统计：超期未确认 / 待归位</text>
+
+<text x="40" y="820" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">物品状态：3 态（状态流转不删除记录）</text>
+
+<path d="M180 860 H266" fill="none" stroke="#B4B2A9" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="225" y="846" font-size="11" fill="#B4B2A9" text-anchor="middle" dominant-baseline="central">取出未归位</text>
+<path d="M410 860 H496" fill="none" stroke="#B4B2A9" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="455" y="846" font-size="11" fill="#B4B2A9" text-anchor="middle" dominant-baseline="central">不在了</text>
+
+<rect x="40" y="836" width="140" height="48" rx="8" fill="#27500A" stroke="#97C459" stroke-width="0.5"/>
+<text x="110" y="860" font-size="13" fill="#C0DD97" text-anchor="middle" dominant-baseline="central">在存放中</text>
+<rect x="270" y="836" width="140" height="48" rx="8" fill="#633806" stroke="#EF9F27" stroke-width="0.5"/>
+<text x="340" y="860" font-size="13" fill="#FAC775" text-anchor="middle" dominant-baseline="central">待归位</text>
+<rect x="500" y="836" width="140" height="48" rx="8" fill="#791F1F" stroke="#F09595" stroke-width="0.5"/>
+<text x="570" y="860" font-size="13" fill="#F7C1C1" text-anchor="middle" dominant-baseline="central">已不在</text>
+
+<path d="M570 884 V916 H110 V886" fill="none" stroke="#B4B2A9" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<text x="340" y="902" font-size="11" fill="#B4B2A9" text-anchor="middle" dominant-baseline="central">可恢复（误操作）</text>
+</svg>

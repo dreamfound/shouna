@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="620" viewBox="0 0 680 620" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif">
+<title>收纳助手 V1 功能结构图</title>
+<desc>本期 30 条需求按 6 个功能域归组，并标注 F1 / F2 / F3 暴露层与 V2 预留位。</desc>
+<rect x="0" y="0" width="680" height="620" fill="#1B1B19"/>
+
+<text x="40" y="40" font-size="15" font-weight="500" fill="#F1EFE8" dominant-baseline="central">收纳助手 V1 · 功能结构图</text>
+<text x="40" y="62" font-size="12" fill="#B4B2A9" dominant-baseline="central">本期 30 条需求按 6 个功能域归组；与 05 需求池 §4.1–§4.6 一一对应</text>
+
+<rect x="40" y="84" width="600" height="50" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<text x="340" y="104" font-size="13" fill="#F1EFE8" text-anchor="middle" dominant-baseline="central">收纳助手 V1 ｜ 纯离线 Android · 不申请网络权限 · 无账号 / 无后端</text>
+<text x="340" y="122" font-size="11.5" fill="#B4B2A9" text-anchor="middle" dominant-baseline="central">交付目标：记录 → 查找 → 归纳 三条闭环可用</text>
+
+<text x="40" y="152" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">左侧色条与右上角标注：蓝 = 核心能力（①②③）· 青 = 支撑能力（④⑤⑥）</text>
+
+<rect x="40" y="170" width="188" height="146" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="40" y="181" width="4" height="124" rx="2" fill="#378ADD"/>
+<text x="56" y="194" font-size="12.5" fill="#F1EFE8" dominant-baseline="central">① 位置与层级</text>
+<text x="212" y="194" font-size="11" fill="#85B7EB" text-anchor="end" dominant-baseline="central">核心能力</text>
+<line x1="56" y1="208" x2="212" y2="208" stroke="#444441" stroke-width="0.5"/>
+<text x="56" y="226" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">多级位置树</text>
+<rect x="166" y="218" width="46" height="16" rx="4" fill="#0F6E56"/>
+<text x="189" y="226" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1·F2</text>
+<text x="56" y="245" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">位置路径面包屑</text>
+<rect x="182" y="237" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="197" y="245" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="56" y="264" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">重命名 · 备注</text>
+<rect x="166" y="256" width="46" height="16" rx="4" fill="#0F6E56"/>
+<text x="189" y="264" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1·F2</text>
+<text x="56" y="283" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">移动 / 合并</text>
+<rect x="182" y="275" width="30" height="16" rx="4" fill="#444441"/>
+<text x="197" y="283" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="56" y="302" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">删除保护自动兜底</text>
+<rect x="166" y="294" width="46" height="16" rx="4" fill="#0F6E56"/>
+<text x="189" y="302" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1·F2</text>
+
+<rect x="246" y="170" width="188" height="146" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="246" y="181" width="4" height="124" rx="2" fill="#378ADD"/>
+<text x="262" y="194" font-size="12.5" fill="#F1EFE8" dominant-baseline="central">② 录入</text>
+<text x="418" y="194" font-size="11" fill="#85B7EB" text-anchor="end" dominant-baseline="central">核心能力</text>
+<line x1="262" y1="208" x2="418" y2="208" stroke="#444441" stroke-width="0.5"/>
+<text x="262" y="226" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">极简录入（仅名称）</text>
+<rect x="388" y="218" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="403" y="226" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="262" y="245" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">连续录入（位置预填）</text>
+<rect x="388" y="237" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="403" y="245" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="262" y="264" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">最近位置页内内联</text>
+<rect x="388" y="256" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="403" y="264" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="262" y="283" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">快速分类 chips</text>
+<rect x="388" y="275" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="403" y="283" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="262" y="302" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">待补详情（草稿箱）</text>
+<rect x="388" y="294" width="30" height="16" rx="4" fill="#444441"/>
+<text x="403" y="302" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+
+<rect x="452" y="170" width="188" height="146" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="452" y="181" width="4" height="124" rx="2" fill="#378ADD"/>
+<text x="468" y="194" font-size="12.5" fill="#F1EFE8" dominant-baseline="central">③ 查找与查询</text>
+<text x="624" y="194" font-size="11" fill="#85B7EB" text-anchor="end" dominant-baseline="central">核心能力</text>
+<line x1="468" y1="208" x2="624" y2="208" stroke="#444441" stroke-width="0.5"/>
+<text x="468" y="226" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">全局搜索（输入即搜）</text>
+<rect x="594" y="218" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="609" y="226" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="468" y="245" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">拼音首字母 · 全拼</text>
+<rect x="594" y="237" width="30" height="16" rx="4" fill="#042C53"/>
+<text x="609" y="245" font-size="11" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">F3</text>
+<text x="468" y="264" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">按位置浏览下钻</text>
+<rect x="594" y="256" width="30" height="16" rx="4" fill="#444441"/>
+<text x="609" y="264" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="468" y="283" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">搜索筛选</text>
+<rect x="594" y="275" width="30" height="16" rx="4" fill="#444441"/>
+<text x="609" y="283" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="468" y="302" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">最近搜索 · 热门位置</text>
+<rect x="594" y="294" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="609" y="302" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+
+<rect x="40" y="332" width="188" height="146" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="40" y="343" width="4" height="124" rx="2" fill="#5DCAA5"/>
+<text x="56" y="356" font-size="12.5" fill="#F1EFE8" dominant-baseline="central">④ 可信度与状态</text>
+<text x="212" y="356" font-size="11" fill="#5DCAA5" text-anchor="end" dominant-baseline="central">支撑能力</text>
+<line x1="56" y1="370" x2="212" y2="370" stroke="#444441" stroke-width="0.5"/>
+<text x="56" y="388" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">「确认还在」</text>
+<rect x="182" y="380" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="197" y="388" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="56" y="407" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">状态 3 态</text>
+<rect x="166" y="399" width="46" height="16" rx="4" fill="#0F6E56"/>
+<text x="189" y="407" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1·F2</text>
+<text x="56" y="426" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">时间双标记</text>
+<rect x="166" y="418" width="46" height="16" rx="4" fill="#0F6E56"/>
+<text x="189" y="426" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1·F2</text>
+<text x="56" y="445" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">按位置批量确认</text>
+<rect x="182" y="437" width="30" height="16" rx="4" fill="#444441"/>
+<text x="197" y="445" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="56" y="464" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">超期未确认清单</text>
+<rect x="182" y="456" width="30" height="16" rx="4" fill="#444441"/>
+<text x="197" y="464" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+
+<rect x="246" y="332" width="188" height="146" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="246" y="343" width="4" height="124" rx="2" fill="#5DCAA5"/>
+<text x="262" y="356" font-size="12.5" fill="#F1EFE8" dominant-baseline="central">⑤ 归纳汇总</text>
+<text x="418" y="356" font-size="11" fill="#5DCAA5" text-anchor="end" dominant-baseline="central">支撑能力</text>
+<line x1="262" y1="370" x2="418" y2="370" stroke="#444441" stroke-width="0.5"/>
+<text x="262" y="388" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">总览卡片 C-1</text>
+<rect x="388" y="380" width="30" height="16" rx="4" fill="#444441"/>
+<text x="403" y="388" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="262" y="407" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">超期未确认 C-4</text>
+<rect x="388" y="399" width="30" height="16" rx="4" fill="#444441"/>
+<text x="403" y="407" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="262" y="426" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">待归位清单 C-5</text>
+<rect x="388" y="418" width="30" height="16" rx="4" fill="#444441"/>
+<text x="403" y="426" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="262" y="445" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">首页一行摘要</text>
+<rect x="388" y="437" width="30" height="16" rx="4" fill="#0F6E56"/>
+<text x="403" y="445" font-size="11" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">F1</text>
+<text x="262" y="464" font-size="11" fill="#B4B2A9" dominant-baseline="central">另 4 张卡片顺延下一期</text>
+
+<rect x="452" y="332" width="188" height="146" rx="10" fill="#2C2C2A" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="452" y="343" width="4" height="124" rx="2" fill="#5DCAA5"/>
+<text x="468" y="356" font-size="12.5" fill="#F1EFE8" dominant-baseline="central">⑥ 数据与基础</text>
+<text x="624" y="356" font-size="11" fill="#5DCAA5" text-anchor="end" dominant-baseline="central">支撑能力</text>
+<line x1="468" y1="370" x2="624" y2="370" stroke="#444441" stroke-width="0.5"/>
+<text x="468" y="388" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">本地持久化</text>
+<rect x="594" y="380" width="30" height="16" rx="4" fill="#042C53"/>
+<text x="609" y="388" font-size="11" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">F3</text>
+<text x="468" y="407" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">导出备份（置顶）</text>
+<rect x="594" y="399" width="30" height="16" rx="4" fill="#444441"/>
+<text x="609" y="407" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="468" y="426" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">导入恢复</text>
+<rect x="594" y="418" width="30" height="16" rx="4" fill="#444441"/>
+<text x="609" y="426" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="468" y="445" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">分类管理</text>
+<rect x="594" y="437" width="30" height="16" rx="4" fill="#444441"/>
+<text x="609" y="445" font-size="11" fill="#D3D1C7" text-anchor="middle" dominant-baseline="central">F2</text>
+<text x="468" y="464" font-size="11.5" fill="#D3D1C7" dominant-baseline="central">深色 · 字号跟随</text>
+<rect x="594" y="456" width="30" height="16" rx="4" fill="#042C53"/>
+<text x="609" y="464" font-size="11" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">F3</text>
+
+<rect x="40" y="494" width="600" height="72" rx="10" fill="#042C53" stroke="#378ADD" stroke-width="0.5"/>
+<text x="52" y="514" font-size="12" fill="#B5D4F4" dominant-baseline="central">本期交付 30 条：P0 16 条（简化档必做）+ P1 14 条（深层，本期做）</text>
+<text x="52" y="533" font-size="11.5" fill="#85B7EB" dominant-baseline="central">顺延下一期 17 条（P2） ｜ 删除 2 条：FR-07 位置模板 · FR-46 首次引导</text>
+<text x="52" y="552" font-size="11.5" fill="#85B7EB" dominant-baseline="central">V2 预留 6 缝：语音输入 / 文本→草稿 / 人工确认位 / 意图解析 / AI 配置 / 成本闸门（V1 零 UI、零权限）</text>
+
+<text x="40" y="588" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">F1 直接暴露（首页可见，零学习成本） · F2 深层（从首页「更多」进入） · F3 后台自动（无独立入口）</text>
+</svg>
