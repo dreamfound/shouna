@@ -2,6 +2,7 @@ package com.dream.shouna.ui.navigation
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -15,6 +16,7 @@ import androidx.navigation.toRoute
 import com.dream.shouna.ui.screen.add.QuickAddRoute
 import com.dream.shouna.ui.screen.home.HomeRoute
 import com.dream.shouna.ui.screen.itemdetail.ItemDetailRoute
+import com.dream.shouna.ui.screen.location.LocationBrowseRoute
 import com.dream.shouna.ui.screen.search.SearchRoute
 
 /**
@@ -26,13 +28,14 @@ val LocalNavController = staticCompositionLocalOf<NavHostController> {
 }
 
 /**
- * 唯一 NavHost：4 条 [ShounaRoute] 与 4 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
+ * 唯一 NavHost：5 条 [ShounaRoute] 与 5 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
  *
  * 系统栏避让是**唯一容器级**职责（ARCHITECTURE §2、§7.2）：窗口是边到边的（`MainActivity`
  * 调 `enableEdgeToEdge()`，且 API 35+ 本就强制），故在此对唯一 NavHost 施加
- * `systemBars ∪ displayCutout` 内边距，4 个页面统一避开状态栏与导航栏、各自不再处理。
- * 用 `union` 而非叠加两次 padding：刘海屏竖屏时状态栏高度已含刘海，叠加会多出空白。
- * **不含 IME**：键盘遮挡由录入页的 IME「完成」兜底保存，页面不因键盘弹起而重排。
+ * `systemBars ∪ displayCutout ∪ ime` 内边距，5 个页面统一避开状态栏、导航栏与键盘、各自不再处理。
+ * 用 `union` 而非叠加两次 padding：刘海屏竖屏时状态栏高度已含刘海、键盘高度已含导航栏，叠加会多出空白。
+ * **含 IME**（2026-09-29 由「不含 IME」改）：键盘弹起时容器整体上移，录入页的「保存并继续」
+ * 浮在键盘上方可点 —— 保存的唯一入口是按钮，IME 完成键只收起键盘，不代替保存。
  */
 @Composable
 fun RouteHandler(modifier: Modifier = Modifier) {
@@ -41,7 +44,7 @@ fun RouteHandler(modifier: Modifier = Modifier) {
         navController = navController,
         startDestination = Home,
         modifier = modifier.windowInsetsPadding(
-            WindowInsets.systemBars.union(WindowInsets.displayCutout),
+            WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime),
         ),
     ) {
         composable<Home> {
@@ -56,11 +59,14 @@ fun RouteHandler(modifier: Modifier = Modifier) {
         composable<ItemDetail> { entry ->
             ItemDetailRoute(itemId = entry.toRoute<ItemDetail>().itemId)
         }
+        composable<LocationBrowse> { entry ->
+            LocationBrowseRoute(locationId = entry.toRoute<LocationBrowse>().locationId)
+        }
     }
 }
 
 // ---- 对外导航动作：Route 层调用，Screen 只下发 onXxx() ----
-// 这 5 个动作的实参完全由调用点决定，无业务逻辑，直接接线。
+// 这 6 个动作的实参完全由调用点决定，无业务逻辑，直接接线。
 
 fun NavHostController.goHome() {
     // 调用关系：NavController.navigate(Home)
@@ -82,8 +88,13 @@ fun NavHostController.goSearch(initialQuery: String? = null) {
 
 fun NavHostController.goItemDetail(itemId: String) {
     // 调用关系：NavController.navigate(ItemDetail(itemId))
-    // 被 SearchScreen 的 onResultClick 触发
+    // 被 SearchScreen 的 onResultClick、LocationBrowseScreen 的 onItemClick 触发
     navigate(ItemDetail(itemId))
+}
+
+/** P0-02 新增：进入位置浏览。`locationId = null` = 根级（全部位置）。 */
+fun NavHostController.goLocationBrowse(locationId: String? = null) {
+    navigate(LocationBrowse(locationId))
 }
 
 fun NavHostController.popBack() {

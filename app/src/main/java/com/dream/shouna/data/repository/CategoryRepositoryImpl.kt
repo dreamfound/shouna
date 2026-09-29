@@ -1,18 +1,31 @@
 package com.dream.shouna.data.repository
 
-import com.dream.shouna.data.memory.BuiltInData
+import com.dream.shouna.data.local.dao.CategoryDao
+import com.dream.shouna.data.local.entity.CategoryEntity
 import com.dream.shouna.domain.model.Category
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 /**
- * F1 只读实现：直接暴露 [BuiltInData.BUILT_IN_CATEGORIES]，无落盘、无分类管理写入路径。
+ * P0-01：只读常量 → `category` 表（`CategoryDao`）。**接口形态不变**，
+ * 8 条内置分类改由 [com.dream.shouna.data.local.SeedCallback] 在建库时写入。
+ *
+ * 本页仍无分类写入路径（分类管理属 P1 的 FR-44）。
  */
 @Singleton
-class CategoryRepositoryImpl @Inject constructor() : CategoryRepository {
+class CategoryRepositoryImpl @Inject constructor(
+    private val categoryDao: CategoryDao,
+) : CategoryRepository {
+
     override fun observeCategories(): Flow<List<Category>> =
-        // 只读常量，无写入路径（§3.3）：每次订阅拿到同一份内置 8 条。
-        flowOf(BuiltInData.BUILT_IN_CATEGORIES)
+        categoryDao.observeAll().map { rows -> rows.map { it.toDomain() } }
 }
+
+/** 持久化行 → 领域模型。 */
+internal fun CategoryEntity.toDomain(): Category = Category(
+    id = id,
+    name = name,
+    sortOrder = sortOrder,
+)

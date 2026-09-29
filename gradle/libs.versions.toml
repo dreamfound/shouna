@@ -27,6 +27,13 @@ navigationCompose = "2.9.6"
 kotlinxSerialization = "1.9.0"
 desugarJdkLibs = "2.1.5"
 
+# --- P0-01 接入（docs/ARCHITECTURE-P0.md §6）---------------------------------
+# Room 2.8.4：minSdk 23 ≤ 本工程 24 ✓；无 minCompileSdk=37 约束 ✓；与 compileSdk 36 / AGP 8.13.2 共存 ✓。
+room = "2.8.4"
+# pinyin4j 2.5.1：Maven Central 直取；纯 Java（可 JVM 单测）；API `PinyinHelper.toHanyuPinyinStringArray`
+# 签名确定 —— P0 §6 原选的 `com.github.houbb:pinyin` 其 API 在本机无法离线核验，改用确定签名者。
+pinyin4j = "2.5.1"
+
 # --- Test -------------------------------------------------------------------
 junit = "4.13.2"
 androidxJunit = "1.3.0"
@@ -58,6 +65,13 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
+
+# --- P0-01 接入 --------------------------------------------------------------
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+pinyin4j = { group = "com.belerweb", name = "pinyin4j", version.ref = "pinyin4j" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }

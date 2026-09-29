@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="680" height="936" viewBox="0 0 680 936" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif">
 <title>收纳助手 V1 主流程图</title>
-<desc>从打开 App 到记录、查找、维护三条闭环的流程图，含位置留空分支与物品三态状态机。</desc>
+<desc>从打开 App 到记录、查找、维护三条闭环的流程图，含位置必填约束与物品三态状态机。</desc>
 <defs>
 <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
 <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -9,13 +9,12 @@
 <rect x="0" y="0" width="680" height="936" fill="#1B1B19"/>
 
 <text x="40" y="40" font-size="15" font-weight="500" fill="#F1EFE8" dominant-baseline="central">收纳助手 V1 · 主流程图</text>
-<text x="40" y="62" font-size="12" fill="#B4B2A9" dominant-baseline="central">记录为主线；位置可留空，录入过程零弹窗，F1 不引入新名词</text>
+<text x="40" y="62" font-size="12" fill="#B4B2A9" dominant-baseline="central">记录为主线；位置必填，录入过程零弹窗，F1 不引入新名词</text>
 
 <path d="M250 132 V156" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M250 224 V248" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M250 316 V340" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
-<path d="M250 396 V420" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
-<path d="M250 504 V528" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M250 396 V528" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M250 596 V620" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
 
 <path d="M100 564 H60 V370 H96" fill="none" stroke="#B4B2A9" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
@@ -33,29 +32,18 @@
 
 <rect x="100" y="252" width="300" height="64" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
 <text x="250" y="276" font-size="13.5" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">P-ADD 快速录入 · F1</text>
-<text x="250" y="298" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">位置条已预填，不点开即无感</text>
-<text x="424" y="272" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">位置不是入场门票</text>
-<text x="424" y="292" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">唯一必填项 = 物品名称</text>
+<text x="250" y="298" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">位置条预选最近使用，首次为空</text>
+<text x="424" y="272" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">必填项 = 名称 + 位置</text>
+<text x="424" y="292" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">位置条预选最近使用</text>
 
 <rect x="100" y="344" width="300" height="52" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
-<text x="250" y="362" font-size="13" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">输入物品名称（唯一必填）</text>
-<text x="250" y="380" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">自动聚焦；键盘回车即保存</text>
+<text x="250" y="362" font-size="13" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">输入物品名称（必填）</text>
+<text x="250" y="380" font-size="11.5" fill="#85B7EB" text-anchor="middle" dominant-baseline="central">自动聚焦；按钮浮在键盘上方</text>
 <text x="424" y="370" font-size="11.5" fill="#B4B2A9" dominant-baseline="central">别名 / 数量下沉 F2</text>
 
-<path d="M250 424 L380 464 L250 504 L120 464 Z" fill="#633806" stroke="#EF9F27" stroke-width="0.5"/>
-<text x="250" y="464" font-size="13" fill="#FAC775" text-anchor="middle" dominant-baseline="central">位置条是否留空？</text>
-<path d="M380 464 H404 V448 H420" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
-<text x="412" y="438" font-size="11" fill="#5DCAA5" text-anchor="middle" dominant-baseline="central">是</text>
-<path d="M404 464 V508 H420" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
-<text x="410" y="494" font-size="11" fill="#5DCAA5" dominant-baseline="central">否</text>
-
-<rect x="424" y="424" width="216" height="48" rx="8" fill="#0F6E56" stroke="#5DCAA5" stroke-width="0.5"/>
-<text x="532" y="442" font-size="12" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">是 → 落「未指定位置」</text>
-<text x="532" y="460" font-size="11" fill="#5DCAA5" text-anchor="middle" dominant-baseline="central">可事后在 F2 补位置</text>
-
-<rect x="424" y="484" width="216" height="48" rx="8" fill="#0F6E56" stroke="#5DCAA5" stroke-width="0.5"/>
-<text x="532" y="502" font-size="12" fill="#9FE1CB" text-anchor="middle" dominant-baseline="central">否 → 落位置条当前值</text>
-<text x="532" y="520" font-size="11" fill="#5DCAA5" text-anchor="middle" dominant-baseline="central">默认树最近使用节点</text>
+<rect x="424" y="430" width="216" height="60" rx="8" fill="#3B2E12" stroke="#EF9F27" stroke-width="0.5"/>
+<text x="532" y="450" font-size="12" fill="#FAC775" text-anchor="middle" dominant-baseline="central">位置必填（2026-09-29）</text>
+<text x="532" y="472" font-size="11" fill="#EF9F27" text-anchor="middle" dominant-baseline="central">未选位置 → 保存按钮禁用</text>
 
 <rect x="100" y="532" width="300" height="64" rx="8" fill="#0C447C" stroke="#85B7EB" stroke-width="0.5"/>
 <text x="250" y="556" font-size="13.5" fill="#B5D4F4" text-anchor="middle" dominant-baseline="central">保存并继续录入 · F1</text>

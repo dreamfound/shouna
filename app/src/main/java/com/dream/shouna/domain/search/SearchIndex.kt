@@ -6,6 +6,9 @@ import com.dream.shouna.util.TextNormalizer
  * 内存搜索索引（ARCHITECTURE §4 F1-04 ①②③）：权重排序、失效过滤、高亮区间。
  * 纯 Kotlin，可在 JVM 上直接做微基准（1000 件 ≤300ms、5000 件 ≤800ms）。
  *
+ * P0-04 起检索维度由 2 档扩到 4 档（名称 / 拼音 / 位置 / 分类），判定与权重在 [SearchScorer]；
+ * 本类只负责「遍历 + 排序 + 截断」，不关心各档怎么判。
+ *
  * 被调用方：SearchViewModel（懒构建，冷启动不阻塞）
  */
 class SearchIndex private constructor(
@@ -33,14 +36,16 @@ class SearchIndex private constructor(
                     hit = SearchHit(
                         doc = doc,
                         matchType = matchType,
-                        // 分类命中时无名称区间可高亮（SearchHit.highlightRange 允许 null）。
+                        // 只有名称命中才有可高亮区间（SearchHit.highlightRange 允许 null）：
+                        // 拼音 / 位置 / 分类命中在名称上没有对应的连续片段。
                         highlightRange = if (matchType == MatchType.NAME) {
                             SearchScorer.highlightRange(doc.name, normalizedQuery)
                         } else {
                             null
                         },
                     ),
-                    score = SearchScorer.score(doc, normalizedQuery, config),
+                    // 档位已判定 → 直接取权重，不重复判定（§4 P0-04 ④）。
+                    score = SearchScorer.weightOf(matchType, config),
                 )
             }
             // 同分时按 lastModifiedAt 倒序，保证结果顺序稳定可复现。

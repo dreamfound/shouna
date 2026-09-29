@@ -2,6 +2,7 @@
 
 > 版本：**v3.0**（结构精简；F2/F3 相关内容一律置空或常量兜底） ｜ 上游：[docs/PRD.md](PRD.md) ｜ 路径基准：工程根 `shouna/`
 > v1.x 架构文档与 `docs/arch/` 分册已废弃，如需查阅：`git show 046a39b:docs/arch/03-关键架构判断.md`。
+> **F1 之后的实现见 [docs/ARCHITECTURE-P0.md](ARCHITECTURE-P0.md)**（P0 剩余 10 条）。本页自此**冻结为 F1 实现说明书**，不再更新；F1 之外的接缝与未决事项一律**以该页为准**。
 
 **一句话结论**：F1 = 「记一件 → 搜到它 → 确认还在」的最小可运行闭环，**数据在内存、重启即丢**。物品一物一处（`storedItem.locationId` 单一归属）；位置与状态在 F1 只有内置常量、无 UI。
 
@@ -18,7 +19,7 @@
 | 存储 | F1 不落盘：`@Singleton` 内存源 + `MutableStateFlow`，重启即丢（持久化接缝置空） |
 | 搜索 | 纯内存索引；检索维度 = 名称归一化子串 + 分类名，无拼音 |
 | 主题 | 只有浅色且字号不跟随系统 |
-| 边到边与系统栏 | 保留 `enableEdgeToEdge()`（API 35+ 本就强制）；**唯一容器级**避让 = 在 `RouteHandler` 的 `NavHost` 上施加 `systemBars ∪ displayCutout` 内边距，4 页不各自处理；**不含 IME** |
+| 边到边与系统栏 | 保留 `enableEdgeToEdge()`（API 35+ 本就强制）；**唯一容器级**避让 = 在 `RouteHandler` 的 `NavHost` 上施加 `systemBars ∪ displayCutout` 内边距，4 页不各自处理；**不含 IME** 系 F1 口径，**2026-09-29 已改为含 IME** —— 见 [ARCHITECTURE-P0.md](ARCHITECTURE-P0.md) §0 与 `docs/实现约束.md` §1（约束 1-5 / 1-6） |
 | DI / 导航 | Hilt 2.57.1（KSP，仅服务 Hilt）；Navigation Compose 2.9.6 + 类型安全路由 4 条；单一 `RouteHandler` 全局路由，`NavController` 经 `LocalNavController` 共享 |
 | 时间 | core library desugaring + `java.time`；模型内一律 `Long` epoch millis |
 | 数据模型 | 3 个纯 Kotlin data class + 2 组内存常量；无 Entity / DAO / schema / 迁移 |
@@ -55,7 +56,7 @@
 
 ### 1.3 F1 明确不做
 
-位置树与位置选择 / 改名、物品状态切换、待归位、双时间与超期提示、最近搜索词、筛选 chips、统计卡片、物品编辑页、分类管理、备份导出导入、设置页、任何 F2 页面与入口；以及拼音检索、本地落盘与数据库。
+位置树与位置选择 / 改名、物品状态切换、待归位、双时间与超期提示、最近搜索词、筛选 chips、统计卡片、物品编辑页、分类管理、备份导出导入（**已于 2026-09-29 永久废弃，不进任何档位**）、设置页、任何 F2 页面与入口；以及拼音检索、本地落盘与数据库。
 
 ## 2. 分层与单向数据流
 
@@ -156,7 +157,7 @@
 ### F1-04 搜索与首页（依赖 F1-03）
 
 - **涉及** `domain/search/`：`SearchDoc.kt` / `SearchIndex.kt` / `SearchScorer.kt` / `SearchHit.kt` / `MatchType.kt` / `SearchConfig.kt`；`ui/screen/search/SearchScreen.kt` + `SearchViewModel.kt`；`ui/screen/home/HomeScreen.kt` + `HomeViewModel.kt`；`ui/component/ShounaSearchBar.kt` / `EmptyState.kt`；单测 1
-- **子步骤** ① `List<StoredItem>` → 内存 `SearchIndex`（权重排序、失效过滤、高亮区间）；② 输入即搜：`debounce(80ms)` + `collectLatest` + `Dispatchers.Default`；③ 索引重建触发 = 文档列表指纹（size + 最大 `lastModifiedAt`）变化；④ `SearchConfig` 只留 limit 与权重常量；⑤ `HomeScreen` 两元素
+- **子步骤** ① `List<StoredItem>` → 内存 `SearchIndex`（权重排序、失效过滤、高亮区间）；② 输入即搜：`debounce(200ms)` + `collectLatest` + `Dispatchers.Default`；③ 索引重建触发 = 文档列表指纹（size + 最大 `lastModifiedAt`）变化；④ `SearchConfig` 只留 limit 与权重常量；⑤ `HomeScreen` 两元素
 - **验收** 「风扇」命中「电风扇」（名称子串）；1000 件 ≤300ms、5000 件 ≤800ms（JVM 微基准）；冷启动不阻塞（索引懒构建）
 - **PRD 承接** FR-19、NFR-05/06/07
 
@@ -205,6 +206,8 @@ F1 内所有指向 F2/F3 的位置**不预留实现、不写代码路径**，只
 
 > 「F2 怎么接」不在本页范围：接口形态仅保证不泄漏内存源结构，替换实现本身不由 F1 负责。
 
+> **接缝去向（2026-09-29 登记）**：[`ARCHITECTURE-P0.md`](ARCHITECTURE-P0.md) 已兑现上表 **4 项**——持久化（Room 5 表）、位置层级与位置选择（`LocationRepository` + 位置树）、物品状态切换（F1 档两动作 + `gone` 恢复）、拼音检索（FR-20）。**仍置空 3 项**：别名、数量、`Tag` / `ItemAlias` / `RecentLocation`；`RecentSearch` 与 `AppConfig` 已由该页建表（原「不建」条目部分失效）。F1 侧 §2 的 `ItemRepository` / `CategoryRepository` 接口形态按该页保持不改，**只换 Impl**。
+
 ### 7.2 永久不做
 
 暗色模式（FR-48）、深色跟随（NFR-16）、字号跟随（NFR-13）——产品级撤销，F1 / F2 均不做；其移除由 F1-01 的浅色锁 + `fontScale = 1f` 落地，并在资源层与窗口层一并收敛：删除模板自带的 `res/values-night/`（`colors.xml` 的 `window_background=#1C1B1F` 与 `themes.xml` 的暗色父主题，均与浅色锁矛盾），另由 `MainActivity.attachBaseContext` 把 `uiMode` 锁 `NIGHT_NO`——使系统处于深色时 `enableEdgeToEdge()` 仍按浅色背景取**深色**系统栏图标（否则会给白图标，压在本 App 浅色背景上不可见）。
@@ -214,6 +217,8 @@ F1 内所有指向 F2/F3 的位置**不预留实现、不写代码路径**，只
 ### 7.3 未决事项：不裁决、不阻塞
 
 以下事项在本页**不做决定**，F1 实现按上述兜底口径进行即可：
+
+> **结案登记（2026-09-29）**：下列 6 项中，属 P0 范围的 4 项已由 [`ARCHITECTURE-P0.md`](ARCHITECTURE-P0.md) 裁决——入口阈值门控（该页 §8.1-8：不做）、位置删除二选一（该页 §8.1-4：子树为单位 + 二选一对话框）、哨兵父级归属（该页 §3.3：根级节点）、`app_config` 键与默认值（该页 §3.1：`threshold_months = 6`）；第 4 项「F1 内存态验收口径」随该页 FR-41 落地而自动终止。**仅「字号锁定与无障碍规范的冲突」一项仍以本页为准。**
 
 - 首启默认位置预置与「位置总数 ≥ 3 显示入口」阈值的口径冲突；
 - 位置删除二选一（F1 档）无触发入口；

@@ -19,6 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dream.shouna.ui.component.EmptyState
 import com.dream.shouna.ui.component.ItemRow
+import com.dream.shouna.ui.component.RecentQueryChips
 import com.dream.shouna.ui.component.ShounaSearchBar
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
@@ -46,7 +47,14 @@ fun SearchRoute(initialQuery: String?) {
 }
 
 /**
- * 无状态页：输入即搜；结果行 = 名称 + 关键词高亮（无路径、无分类后缀、无时间）。
+ * 无状态页：输入即搜。
+ *
+ * 三段式（对应 [SearchUiState] 的三种形态）：
+ * 1. **未输入** → 最近搜索词（FR-23）；没有历史则整块不渲染，保持安静；
+ * 2. **有输入但无结果** → 空态文案；
+ * 3. **有结果** → 结果行 = 名称 + 关键词高亮 + 副标题（位置路径 · 最后确认）+ FR-27 的 ⚠。
+ *
+ * 副标题与 ⚠ 的判定都在 VM 算好（Screen 不持有 `TimeUtil` / `ConfigRepository`）。
  */
 @Composable
 fun SearchScreen(
@@ -74,15 +82,25 @@ fun SearchScreen(
         }
 
         when {
-            // 未输入时不展示空态文案，保持安静。
-            uiState.query.isBlank() -> Unit
+            // 未输入时展示最近搜索词；点 chip = 回填并立刻检索。
+            uiState.query.isBlank() -> RecentQueryChips(
+                queries = uiState.recentQueries,
+                onQueryClick = onQueryChange,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+
             uiState.results.isEmpty() -> EmptyState(text = "没有找到相关物品")
+
             else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(items = uiState.results, key = { it.doc.itemId }) { hit ->
+                items(items = uiState.results, key = { it.itemId }) { row ->
                     ItemRow(
-                        name = hit.doc.name,
-                        highlightRange = hit.highlightRange,
-                        onClick = { onResultClick(hit.doc.itemId) },
+                        name = row.name,
+                        highlightRange = row.highlightRange,
+                        subtitle = row.subtitle,
+                        showOverdue = row.isOverdue,
+                        // FR-02 / US-04：长按结果行副标题可复制该物品的位置路径。
+                        copyablePath = row.locationPath,
+                        onClick = { onResultClick(row.itemId) },
                     )
                 }
             }
