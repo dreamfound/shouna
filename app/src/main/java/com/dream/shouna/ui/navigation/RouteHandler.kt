@@ -1,5 +1,10 @@
 package com.dream.shouna.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -22,6 +27,12 @@ val LocalNavController = staticCompositionLocalOf<NavHostController> {
 
 /**
  * 唯一 NavHost：4 条 [ShounaRoute] 与 4 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
+ *
+ * 系统栏避让是**唯一容器级**职责（ARCHITECTURE §2、§7.2）：窗口是边到边的（`MainActivity`
+ * 调 `enableEdgeToEdge()`，且 API 35+ 本就强制），故在此对唯一 NavHost 施加
+ * `systemBars ∪ displayCutout` 内边距，4 个页面统一避开状态栏与导航栏、各自不再处理。
+ * 用 `union` 而非叠加两次 padding：刘海屏竖屏时状态栏高度已含刘海，叠加会多出空白。
+ * **不含 IME**：键盘遮挡由录入页的 IME「完成」兜底保存，页面不因键盘弹起而重排。
  */
 @Composable
 fun RouteHandler(modifier: Modifier = Modifier) {
@@ -29,7 +40,9 @@ fun RouteHandler(modifier: Modifier = Modifier) {
     NavHost(
         navController = navController,
         startDestination = Home,
-        modifier = modifier,
+        modifier = modifier.windowInsetsPadding(
+            WindowInsets.systemBars.union(WindowInsets.displayCutout),
+        ),
     ) {
         composable<Home> {
             HomeRoute()

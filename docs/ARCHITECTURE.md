@@ -18,6 +18,7 @@
 | 存储 | F1 不落盘：`@Singleton` 内存源 + `MutableStateFlow`，重启即丢（持久化接缝置空） |
 | 搜索 | 纯内存索引；检索维度 = 名称归一化子串 + 分类名，无拼音 |
 | 主题 | 只有浅色且字号不跟随系统 |
+| 边到边与系统栏 | 保留 `enableEdgeToEdge()`（API 35+ 本就强制）；**唯一容器级**避让 = 在 `RouteHandler` 的 `NavHost` 上施加 `systemBars ∪ displayCutout` 内边距，4 页不各自处理；**不含 IME** |
 | DI / 导航 | Hilt 2.57.1（KSP，仅服务 Hilt）；Navigation Compose 2.9.6 + 类型安全路由 4 条；单一 `RouteHandler` 全局路由，`NavController` 经 `LocalNavController` 共享 |
 | 时间 | core library desugaring + `java.time`；模型内一律 `Long` epoch millis |
 | 数据模型 | 3 个纯 Kotlin data class + 2 组内存常量；无 Entity / DAO / schema / 迁移 |
@@ -61,7 +62,7 @@
 | 层 | 职责 | 禁止 |
 |---|---|---|
 | Screen（Composable） | 渲染 UiState、下发 `onXxx()`；`XxxScreen` 无状态、不取 ViewModel；同层 `XxxRoute` 是有状态包装层，唯一职责是 `hiltViewModel()` 取 ViewModel 后把 UiState 下传给 `XxxScreen` | 持有 Repository / 写业务逻辑 |
-| 导航（`RouteHandler`） | 一个 `RouteHandler` 管全局路由：声明唯一 `NavHost(startDestination = Home)`，4 条 `composable<Route>` 与 4 个页一一注册，对外只暴露 `goHome()` / `goQuickAdd()` / `goSearch()` / `goItemDetail()` / `popBack()`；`NavController` 由 `MainActivity` 建一次、经 `LocalNavController` 共享 | 写业务逻辑 / 取 ViewModel |
+| 导航（`RouteHandler`） | 一个 `RouteHandler` 管全局路由：声明唯一 `NavHost(startDestination = Home)`，4 条 `composable<Route>` 与 4 个页一一注册，对外只暴露 `goHome()` / `goQuickAdd()` / `goSearch()` / `goItemDetail()` / `popBack()`；`NavController` 由 `MainActivity` 建一次、经 `LocalNavController` 共享；并对唯一 `NavHost` 施加 `systemBars ∪ displayCutout` 内边距（`WindowInsets.systemBars.union(WindowInsets.displayCutout)`），4 页统一避开状态栏与导航栏 | 写业务逻辑 / 取 ViewModel |
 | ViewModel | 持有 `StateFlow<UiState>`、编排用例、异常映射为 UiState | 持有 Context（除 Application） |
 | Repository（接口） | 用例编排、派生字段（归一化名 / 检索键）、失效过滤 | 暴露内存源内部结构 |
 | `data/memory` | **唯一可变状态 owner**：`MutableStateFlow<List<StoredItem>>`，写入以 `Mutex` 串行化 | 含业务判断 / 被 UI 直接依赖 |
@@ -168,7 +169,7 @@ graph LR
 
 ## 5. 文件规模
 
-新建约 **42** 个（F1-01 四 / F1-02 十二 / F1-03 十三 / F1-04 十三）；修改既有 **7** 个（`libs.versions.toml`、根与 app 构建文件、`AndroidManifest.xml`、`MainActivity.kt`、`ui/theme/Theme.kt`、`ui/theme/Color.kt`）。源码根 `app/src/main/java/com/dream/shouna/`，单测根 `app/src/test/java/com/dream/shouna/`，**无仪器测试目录**。
+新建约 **42** 个（F1-01 四 / F1-02 十二 / F1-03 十三 / F1-04 十三）；修改既有 **7** 个（`libs.versions.toml`、根与 app 构建文件、`AndroidManifest.xml`、`MainActivity.kt`、`ui/theme/Theme.kt`、`ui/theme/Color.kt`）；另**删除**模板自带的 `res/values-night/`（`colors.xml`、`themes.xml`）两个资源文件（§7.2）。源码根 `app/src/main/java/com/dream/shouna/`，单测根 `app/src/test/java/com/dream/shouna/`，**无仪器测试目录**。
 
 ## 6. 依赖版本与兼容性
 
@@ -206,7 +207,9 @@ F1 内所有指向 F2/F3 的位置**不预留实现、不写代码路径**，只
 
 ### 7.2 永久不做
 
-暗色模式（FR-48）、深色跟随（NFR-16）、字号跟随（NFR-13）——产品级撤销，F1 / F2 均不做；其移除由 F1-01 的浅色锁 + `fontScale = 1f` 落地。
+暗色模式（FR-48）、深色跟随（NFR-16）、字号跟随（NFR-13）——产品级撤销，F1 / F2 均不做；其移除由 F1-01 的浅色锁 + `fontScale = 1f` 落地，并在资源层与窗口层一并收敛：删除模板自带的 `res/values-night/`（`colors.xml` 的 `window_background=#1C1B1F` 与 `themes.xml` 的暗色父主题，均与浅色锁矛盾），另由 `MainActivity.attachBaseContext` 把 `uiMode` 锁 `NIGHT_NO`——使系统处于深色时 `enableEdgeToEdge()` 仍按浅色背景取**深色**系统栏图标（否则会给白图标，压在本 App 浅色背景上不可见）。
+
+> 边到边与系统栏避让是本节的配套项：窗口边到边后，唯一容器 `RouteHandler` 的 `NavHost` 统一施加 `systemBars ∪ displayCutout` 内边距（§0 / §2）。
 
 ### 7.3 未决事项：不裁决、不阻塞
 
