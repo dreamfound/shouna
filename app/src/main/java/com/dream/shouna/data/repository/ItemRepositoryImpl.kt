@@ -148,6 +148,17 @@ class ItemRepositoryImpl @Inject constructor(
 
     override suspend fun restore(itemId: String): StoredItem? = setStatus(itemId, ItemStatus.IN_STORAGE)
 
+    // --- P1-03 / 04 / 06：编辑、批量确认、查重（骨架，桩体待实现） -----------------------
+
+    override suspend fun updateFields(itemId: String, patch: ItemFieldPatch): StoredItem? =
+        TODO("P1-04 ①: 只写被给出的字段；别名变更时同事务重算 pinyin_full / pinyin_initial")
+
+    override suspend fun confirmByLocation(nodeId: String): Int =
+        TODO("P1-02 ⑥ / FR-28: 含子层批量确认（写 last_confirmed_at，不动 last_modified_at）")
+
+    override suspend fun findSimilar(name: String): List<StoredItem> =
+        TODO("P1-06 ② / FR-14: 归一化同名 + 互为子串且长度差 ≤ 2 的查重（非阻塞提示）")
+
     /**
      * 三表 → 检索文档的纯映射（无挂起、无 IO），便于按批一次性算出派生字段。
      *
@@ -199,7 +210,12 @@ internal fun StoredItem.toEntity(pinyinFull: String, pinyinInitial: String): Ite
         lastConfirmedAt = lastConfirmedAt,
     )
 
-/** 持久化行 → 领域模型。 */
+/**
+ * 持久化行 → 领域模型。
+ *
+ * TODO(P1-04): `aliases` 目前取默认空列表 —— `alias_blob` 的解码（`\u001F` 切分）随
+ * 物品编辑页一并落地；在那之前 `aliasBlob` 也是恒空串，两者一致，不会出现「一个说有一个说没有」。
+ */
 internal fun ItemEntity.toDomain(): StoredItem = StoredItem(
     id = id,
     name = name,

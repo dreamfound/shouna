@@ -160,6 +160,16 @@ class QuickAddViewModel @Inject constructor(
         }
     }
 
+    /**
+     * FR-14：「查看已有」——跳到查重命中的那条记录（导航由 Route 层下发）。
+     *
+     * 之所以是「跳转」而不是「阻止保存」：FR-14 在 `prd/05` 标 F2，触发点却在 F1 的 P-ADD，
+     * 本页按「**提示轻量、不引入新名词、无门控**」处置（P1 §8.1-12）——保存永远可继续。
+     */
+    fun onViewSimilar() {
+        TODO("P1-06 ②: 把 similarItemId 交给 Route 跳详情页")
+    }
+
     /** canSave 口径（位置必填）：**名称非空 ∧ 位置已选**。 */
     private fun recomputeCanSave() {
         state.update {
@@ -183,4 +193,14 @@ data class QuickAddUiState(
     val selectedLocationId: String? = null,
     /** 已选位置的面包屑文本；未选为空串。 */
     val selectedLocationPath: String = "",
+    /**
+     * FR-14：保存后查重命中的「同名 / 高度相似」件数；0 = 不提示。
+     *
+     * **非阻塞**：只驱动一行提示 + 一个「查看」入口，不阻断保存、不弹对话框
+     * （守 `实现约束.md` §4-1 零弹窗与 §4-4 连续录入期间不弹位置/分类对话框）。
+     * 骨架期恒 0：判定与文案在 P1-06 实现期接入 `onSaveAndContinue` 的保存成功分支。
+     */
+    val similarCount: Int = 0,
+    /** FR-14：「查看」要跳转到的已有物品 id。null = 无提示。 */
+    val similarItemId: String? = null,
 )

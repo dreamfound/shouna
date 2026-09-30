@@ -61,14 +61,23 @@ class LocationRepositoryImpl @Inject constructor(
         transactionRunner.run {
             // 同级末尾排序：并列时按名称，保证 UI 顺序稳定。
             val nextOrder = (locationDao.siblings(parentId).maxOfOrNull { it.sortOrder } ?: 0) + 1
+            val id = idGenerator.newId()
+            // P1-01：`path` 由**父节点的 ID 序列路径**派生（根级 = 空父路径）。
+            // 口径与建库种子、迁移回填共用 [LocationPath.buildIdPath]（P1 §3.2）。
+            val parentPath = parentId?.let { locationDao.findById(it)?.path }.orEmpty()
             val location = Location(
-                id = idGenerator.newId(),
+                id = id,
                 name = name.trim(),
                 isBuiltIn = false,
                 parentId = parentId,
                 sortOrder = nextOrder,
             )
-            locationDao.insert(location.toEntity(now = timeUtil.nowMillis()))
+            locationDao.insert(
+                location.toEntity(
+                    now = timeUtil.nowMillis(),
+                    path = LocationPath.buildIdPath(selfId = id, parentPath = parentPath),
+                ),
+            )
             location
         }
 
@@ -140,6 +149,20 @@ class LocationRepositoryImpl @Inject constructor(
         locationDao.touchLastUsed(id = id, at = timeUtil.nowMillis())
     }
 
+    // --- P1-02（FR-04 / 06 / 21 / 28）：位置树深化（骨架，桩体待实现） ------------------
+
+    override suspend fun move(nodeId: String, newParentId: String?): Boolean =
+        TODO("P1-02 ①: 校验 isDescendantPath → 同事务改 parent_id + 重写子树 path")
+
+    override suspend fun merge(sourceId: String, targetId: String): Boolean =
+        TODO("P1-02 ②: 子位置与物品改挂 target → 复用既有删除档位处理 source")
+
+    override suspend fun setTemporary(nodeId: String, flag: Boolean): Boolean =
+        TODO("P1-02 ⑤: 写 location.is_temporary（位置侧操作，不刷新物品时间戳）")
+
+    override fun observeCounts(nodeId: String): Flow<LocationCounts> =
+        TODO("P1-02 ③: 本层计数 + 子树前缀区间计数的合并流")
+
     /** 子树 id 收集，返回顺序为**子先于父**（先叶子、后根），供自底向上删除使用。 */
     private suspend fun collectSubtreeIdsBottomUp(rootId: String): List<String> {
         val preorder = ArrayList<String>()
@@ -179,11 +202,15 @@ internal fun LocationEntity.toDomain(): Location = Location(
     lastUsedAt = lastUsedAt,
 )
 
-/** 领域模型 → 持久化行。 */
-internal fun Location.toEntity(now: Long): LocationEntity = LocationEntity(
+/**
+ * 领域模型 → 持久化行。`path` 是物化列（P1-01），**由调用方算好传入** —— 本函数保持纯映射，
+ * 不自己去查父级（那样会把一次写变成「读父链 + 写」的两步，破坏「单表写不用事务」的约定）。
+ */
+internal fun Location.toEntity(now: Long, path: String): LocationEntity = LocationEntity(
     id = id,
     name = name,
     parentId = parentId,
+    path = path,
     isBuiltIn = isBuiltIn,
     isTemporary = isTemporary,
     note = note,
@@ -217,6 +244,8 @@ internal fun buildTreeRows(
                     depth = depth,
                     pathText = pathTextById[node.id].orEmpty(),
                     itemCount = itemCountById[node.id] ?: 0,
+                    // TODO(P1-02 ③): 由子树前缀区间聚合出「含子层共 M 件」，当前留默认 0（骨架期不展示）。
+                    subtreeItemCount = 0,
                     hasChildren = (childCountByParent[node.id] ?: 0) > 0,
                 )
                 appendChildren(node.id, depth + 1)

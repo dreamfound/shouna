@@ -30,12 +30,15 @@ class SeedCallback : RoomDatabase.Callback() {
         locations.forEach { location ->
             db.execSQL(
                 "INSERT INTO location " +
-                    "(id, name, parent_id, is_built_in, is_temporary, note, sort_order, last_used_at, created_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(id, name, parent_id, path, is_built_in, is_temporary, note, sort_order, last_used_at, created_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arrayOf<Any?>(
                     location.id,
                     location.name,
                     location.parentId,
+                    // P1-01：`path` 由常量层前置算好（同一纯函数派生），使**新建库**与
+                    // **存量库走迁移**两条路径产出同一形态（P1 §3.2）。缺失即空串，不抛。
+                    BuiltInData.SEED_LOCATION_PATHS[location.id].orEmpty(),
                     if (location.isBuiltIn) 1 else 0,
                     if (location.isTemporary) 1 else 0,
                     location.note,

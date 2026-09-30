@@ -2,6 +2,7 @@ package com.dream.shouna.di
 
 import android.content.Context
 import androidx.room.Room
+import com.dream.shouna.data.local.Migrations
 import com.dream.shouna.data.local.RoomTransactionRunner
 import com.dream.shouna.data.local.SeedCallback
 import com.dream.shouna.data.local.ShounaDatabase
@@ -19,10 +20,14 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * 持久化装配（ARCHITECTURE-P0 §2）：唯一 `ShounaDatabase` 实例 + 5 个 DAO。
+ * 持久化装配（ARCHITECTURE-P0 §2 + P1 §3.2）：唯一 `ShounaDatabase` 实例 + 5 个 DAO。
  *
  * `addCallback(SeedCallback())` 只在**数据库首次创建**时触发（`onCreate`），
- * 已存在的库不会重复写入种子 → 不需要版本迁移，也不会覆盖用户数据。
+ * 已存在的库不会重复写入种子。
+ *
+ * `addMigrations(Migrations.MIGRATION_1_2)` 是 P1-01 新增的迁移挂载点：存量库（`version = 1`）
+ * 升级时加 `location.path` 并回填。**不调用** `fallbackToDestructiveMigration()` ——
+ * 那会让升级用户数据全丢（P1 §8.1-1）。
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -35,7 +40,10 @@ object DatabaseModule {
             context = context,
             klass = ShounaDatabase::class.java,
             name = ShounaDatabase.NAME,
-        ).addCallback(SeedCallback()).build()
+        )
+            .addCallback(SeedCallback())
+            .addMigrations(Migrations.MIGRATION_1_2)
+            .build()
 
     @Provides
     @Singleton

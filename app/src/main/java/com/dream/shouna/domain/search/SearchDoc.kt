@@ -3,10 +3,10 @@ package com.dream.shouna.domain.search
 import com.dream.shouna.domain.model.ItemStatus
 
 /**
- * 索引文档（ARCHITECTURE-P0 §4 P0-04 ②）：由 `item` + `category` + `location` 三表联合派生。
+ * 索引文档（ARCHITECTURE-P0 §4 P0-04 ② + P1-04）：由 `item` + `category` + `location` 三表联合派生。
  *
  * 检索维度（权重从高到低，见 [SearchConfig]）：
- * 名称子串 → **拼音全拼 / 首字母** → 位置路径（含位置名拼音）→ 分类名。
+ * 名称子串（**含别名，同档**）→ **拼音全拼 / 首字母** → 位置路径（含位置名拼音）→ 分类名。
  *
  * 后三个字段的持久化口径不同，别混：
  * - [pinyinFull] / [pinyinInitial]：**持久化列**读出（`item.pinyin_full` 等，A-2 允许）；
@@ -16,6 +16,15 @@ data class SearchDoc(
     val itemId: String,
     val name: String,
     val normalizedName: String,
+    /**
+     * P1-04：别名（展示用原串）。**与名称同档**（`MatchType.NAME`），不新开档位
+     * ——别名存在的意义就是「换个说法也能搜到同一个东西」，另立低档会让它被同名命中挤下去。
+     *
+     * 骨架期由 `ItemRepositoryImpl.toSearchDoc` 留空；P1-04 实现期从 `item.alias_blob` 解码填入。
+     */
+    val aliases: List<String> = emptyList(),
+    /** P1-04：别名的归一化形态（检索比较用）。 */
+    val normalizedAliases: List<String> = emptyList(),
     /** FR-20：名称全拼（如 `dianfengshan`）。 */
     val pinyinFull: String = "",
     /** FR-20：名称拼音首字母（如 `dfs`）。 */

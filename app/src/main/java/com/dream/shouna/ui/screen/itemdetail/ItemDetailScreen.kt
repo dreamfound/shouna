@@ -10,6 +10,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,14 +21,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dream.shouna.ui.component.LocationBreadcrumb
 import com.dream.shouna.ui.component.OverdueMark
 import com.dream.shouna.ui.component.RelativeTimeText
+import com.dream.shouna.ui.navigation.LocalNavController
+import com.dream.shouna.ui.navigation.goItemEdit
 
 /**
  * 有状态包装层（ARCHITECTURE §2）：取 ViewModel、把 UiState 下传。
+ * P1：「⋯更多」的导航动作在本层下发。
  */
 @Composable
 fun ItemDetailRoute(itemId: String) {
     val viewModel: ItemDetailViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val navController = LocalNavController.current
 
     LaunchedEffect(itemId) {
         viewModel.load(itemId)
@@ -38,6 +43,7 @@ fun ItemDetailRoute(itemId: String) {
         onConfirmStillHere = viewModel::onConfirmStillHere,
         onMarkGone = viewModel::onMarkGone,
         onRestore = viewModel::onRestore,
+        onMoreClick = { navController.goItemEdit(itemId) },
     )
 }
 
@@ -46,6 +52,10 @@ fun ItemDetailRoute(itemId: String) {
  *
  * 按钮区按当前状态切换：常规态给「✓ 还在」与「✕ 不在了」；已标记「不在了」只给「恢复」
  * —— 已失效的物品再点「还在」语义不清（恢复本身就是一次确认）。
+ *
+ * **P1 新增「⋯更多」入口**（P1 §8.1-17）：本次只落一个进入 P-ITEM-EDIT 的入口。
+ * 折叠展开后的字段清单（分类 / 别名 / 备注 / 数量 / 最后变动 / 待归位 / 移动入口）
+ * 与 P1-04 的物品编辑页一并落地，此刻不做「展开一半」的中间态。
  */
 @Composable
 fun ItemDetailScreen(
@@ -53,6 +63,7 @@ fun ItemDetailScreen(
     onConfirmStillHere: () -> Unit,
     onMarkGone: () -> Unit,
     onRestore: () -> Unit,
+    onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hasItem = uiState.item != null
@@ -116,6 +127,16 @@ fun ItemDetailScreen(
             ) {
                 Text(text = "✕ 不在了")
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // P1-04：进入物品编辑页（分类 / 别名 / 数量 / 备注）。详情页的「✏」与这里同落点。
+        TextButton(
+            onClick = onMoreClick,
+            enabled = hasItem,
+        ) {
+            Text(text = "⋯更多")
         }
     }
 }

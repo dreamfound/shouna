@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dream.shouna.data.repository.ConfigRepository
 import com.dream.shouna.data.repository.ItemRepository
+import com.dream.shouna.domain.model.ItemStatus
 import com.dream.shouna.domain.search.SearchConfig
 import com.dream.shouna.domain.search.SearchDoc
 import com.dream.shouna.domain.search.SearchHit
@@ -118,6 +119,31 @@ class SearchViewModel @Inject constructor(
         queryInput.value = value
     }
 
+    // --- P1-06 ①（FR-22）：筛选 chips（骨架，未接入 Screen） -----------------------------
+    // 与「输入即搜」正交：筛选只**收窄**已命中的结果集，不参与检索判定，因此不必回到
+    // `SearchIndex` 里改打分（守 `实现约束.md` §4-5：筛选控件在 P1 才进搜索页）。
+    // 三个入口此刻只立签名，Screen 尚未挂 `FilterChips`，避免出现可点即崩的中间态。
+
+    /** FR-22：分类维度。 */
+    fun onCategoryFilterSelected(categoryId: String?) {
+        TODO("P1-06 ①: 写入 filters.categoryId 并重算结果（可叠加、可清空）")
+    }
+
+    /** FR-22：位置维度。**含子层** —— 选中一个位置即含其全部子孙（P1 §8.1-7）。 */
+    fun onLocationFilterSelected(locationId: String?) {
+        TODO("P1-06 ①: 写入 filters.locationId；匹配口径为「含子层」")
+    }
+
+    /** FR-22：状态维度。 */
+    fun onStatusFilterSelected(status: ItemStatus?) {
+        TODO("P1-06 ①: 写入 filters.status")
+    }
+
+    /** FR-22：一键清空（三个维度一起）。纯状态复位，无副作用。 */
+    fun onClearFilters() {
+        state.update { it.copy(filters = SearchFilters()) }
+    }
+
     private fun resolveIndex(docs: List<SearchDoc>): SearchIndex {
         val fingerprint = SearchIndex.fingerprintOf(docs)
         val current = index
@@ -192,7 +218,25 @@ data class SearchUiState(
     /** FR-23：空态展示的最近搜索词（按最近倒序，上限 20 条）。 */
     val recentQueries: List<String> = emptyList(),
     val isIndexing: Boolean = false,
+    /** P1-06 ①（FR-22）：筛选态。骨架期恒为「未筛选」。 */
+    val filters: SearchFilters = SearchFilters(),
 )
+
+/**
+ * FR-22 的筛选三维（P1-06）。`null` = 该维度未筛选；三个维度**可叠加**。
+ *
+ * 位置维度选中的是**一个位置 id**，但匹配口径是「含子层」——即选中「家」也包含「家 › 储物间」
+ * 下的物品（P1 §8.1-7）。子层展开在 ViewModel 做（要拿 `location.path` 前缀），不在组件里。
+ */
+data class SearchFilters(
+    val categoryId: String? = null,
+    val locationId: String? = null,
+    val status: ItemStatus? = null,
+) {
+    /** 三维皆空 = 未筛选（UI 据此决定要不要显示「清空」）。 */
+    val isEmpty: Boolean
+        get() = categoryId == null && locationId == null && status == null
+}
 
 /**
  * 结果行（P0-04 ⑥）：VM 已把「路径 · 时间」与超期判定算好，Screen 只负责渲染

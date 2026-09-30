@@ -427,6 +427,8 @@ class ItemRepositoryImplTest {
         id = BEDROOM_ID,
         name = "卧室",
         parentId = null,
+        // P1-01：夹具同步补 `path`（ID 序列、含自身、前后带 `/`），与建库种子同形。
+        path = "/$BEDROOM_ID/",
         isBuiltIn = false,
         isTemporary = false,
         note = null,
@@ -440,6 +442,7 @@ class ItemRepositoryImplTest {
         id = BOX_ID,
         name = "纸箱-07",
         parentId = BEDROOM_ID,
+        path = "/$BEDROOM_ID/$BOX_ID/",
         isBuiltIn = false,
         isTemporary = false,
         note = null,

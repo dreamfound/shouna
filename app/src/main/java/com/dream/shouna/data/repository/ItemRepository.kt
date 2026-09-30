@@ -62,4 +62,45 @@ interface ItemRepository {
 
     /** FR-25：`gone` → `in_storage` 的恢复入口（语义化包装，避免调用方拼 `setStatus`）。 */
     suspend fun restore(itemId: String): StoredItem?
+
+    // --- P1-03 / 04 / 06：编辑、批量确认、查重 ---------------------------------------
+
+    /**
+     * P1-04：**补丁式**写入（分类 / 别名 / 数量 / 备注）。只写被显式给出的字段，其余原样。
+     *
+     * 时间戳口径（P1 §3.5 / §3.4-10）：别名与数量的变化**不刷新** `last_modified_at`
+     * ——它们不改变「东西在哪、还在不在」这个身份。
+     * 别名变更时**同事务重算** `pinyin_full` / `pinyin_initial`（别名与名称同档，参检索）。
+     *
+     * 返回更新后的记录；未命中返回 null。
+     */
+    suspend fun updateFields(itemId: String, patch: ItemFieldPatch): StoredItem?
+
+    /**
+     * FR-28：对该位置**含子层**的全部物品一次性确认（写 `last_confirmed_at`，不动 `last_modified_at`）。
+     * 返回受影响行数 —— 调用方据此向用户回报「本次确认了 N 件」（P1 §3.5 矩阵末行）。
+     */
+    suspend fun confirmByLocation(nodeId: String): Int
+
+    /**
+     * FR-14：录入时的重名 / 高度相似查重，供 P-ADD 的**非阻塞**提示使用（不阻断保存）。
+     *
+     * 口径（P1 §8.1-11）：「同名」= 归一化名完全相同；「高度相似」= 互为子串且长度差 ≤ 2。
+     * **不做编辑距离**（误报率高、纯增成本）。
+     */
+    suspend fun findSimilar(name: String): List<StoredItem>
 }
+
+/**
+ * 补丁式写入的载荷（P1-04）。`null` = 「不改这一项」，因此**无法用它把备注清空为 null**
+ * ——清空备注走空串再归一（与录入页 `note?.trim()?.ifBlank { null }` 同一口径）。
+ *
+ * 注：P1 §2 的表述里还提到「去向备注」，但 §3.1 已裁定本次**不新增列**，
+ * `item` 表也没有对应字段 → 骨架期不并入本补丁，该字段的落点待裁决后再定。
+ */
+data class ItemFieldPatch(
+    val categoryId: String? = null,
+    val aliases: List<String>? = null,
+    val quantity: Int? = null,
+    val note: String? = null,
+)

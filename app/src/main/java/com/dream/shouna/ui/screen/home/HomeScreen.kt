@@ -24,9 +24,12 @@ import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goLocationBrowse
 import com.dream.shouna.ui.navigation.goQuickAdd
 import com.dream.shouna.ui.navigation.goSearch
+import com.dream.shouna.ui.navigation.goSettings
+import com.dream.shouna.ui.navigation.goStats
 
 /**
  * 有状态包装层（ARCHITECTURE §2）。
+ * P1：「更多」由 1 项扩到 3 项，新增的统计 / 设置两条导航动作在本层下发。
  */
 @Composable
 fun HomeRoute() {
@@ -39,14 +42,17 @@ fun HomeRoute() {
         onSearchClick = { navController.goSearch() },
         onQuickAddClick = { navController.goQuickAdd() },
         onBrowseLocationsClick = { navController.goLocationBrowse() },
+        onStatsClick = { navController.goStats() },
+        onSettingsClick = { navController.goSettings() },
     )
 }
 
 /**
  * 无状态页：搜索框（点击进搜索页并聚焦）+「＋ 记一件」+「更多」折叠区。
  *
- * 「更多」是 F2 入口的容器（ARCHITECTURE-P0 §0）：本页只放**位置浏览**一项。
- * **不做阈值门控** —— 首启已预置 6 个位置，「位置总数 ≥ 3 才显示」恒真，门控是死代码。
+ * 「更多」是 F2 入口的容器（ARCHITECTURE-P0 §0）：P1 起由 **1 项 → 3 项**
+ * （位置浏览 / 归纳统计 / 设置）。
+ * **不做阈值门控** —— 首启已预置 6 个位置，「位置总数 ≥ 3 才显示」恒真，门控是死代码（P0 §8.1-8）。
  */
 @Composable
 fun HomeScreen(
@@ -54,6 +60,8 @@ fun HomeScreen(
     onSearchClick: () -> Unit,
     onQuickAddClick: () -> Unit,
     onBrowseLocationsClick: () -> Unit,
+    onStatsClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var moreExpanded by rememberSaveable { mutableStateOf(false) }
@@ -88,6 +96,12 @@ fun HomeScreen(
         if (moreExpanded) {
             TextButton(onClick = onBrowseLocationsClick) {
                 Text(text = "位置浏览")
+            }
+            TextButton(onClick = onStatsClick) {
+                Text(text = "归纳统计")
+            }
+            TextButton(onClick = onSettingsClick) {
+                Text(text = "设置")
             }
         }
 

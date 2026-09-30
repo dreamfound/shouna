@@ -134,6 +134,34 @@ class LocationBrowseViewModel @Inject constructor(
         isOverdue = timeUtil.isOverdue(lastConfirmedAt, thresholdMonths, now),
     )
 
+    // --- P1-02（FR-04 / 06 / 28）：位置树深化的动作入口（骨架） --------------------------
+    // 只立签名：对应的界面入口（移动 / 合并的目标选择弹层、临时标记、批量确认按钮）在 P1-02
+    // 实现期与 `LocationMoveSheet` / `TemporaryMark` 一并挂上，**此刻 Screen 不调用它们**
+    // —— 避免出现「可点但会走到 TODO 桩」的中间态。
+
+    /** FR-04：把当前层（**含整棵子树**）移动到 [newParentId] 下。 */
+    fun onMoveCurrent(newParentId: String?) {
+        TODO("P1-02 ①: repository.move(currentId, newParentId)；失败不改状态")
+    }
+
+    /** FR-04：把当前层合并进 [targetId]（当前层的子位置与物品改挂目标，随后当前层消失）。 */
+    fun onMergeCurrent(targetId: String) {
+        TODO("P1-02 ②: repository.merge(currentId, targetId)；成功后回根级")
+    }
+
+    /** FR-06：标记 / 取消把当前层作为临时位置。 */
+    fun onToggleTemporaryCurrent(flag: Boolean) {
+        TODO("P1-02 ⑤: repository.setTemporary(currentId, flag)")
+    }
+
+    /**
+     * FR-28：对当前层**含子层**的全部物品一键确认。
+     * 界面上必须先弹出影响范围（「含子层共 M 件」）再执行 —— 别让用户以为只动了本层。
+     */
+    fun onConfirmAllInCurrent() {
+        TODO("P1-02 ⑥: repository.confirmByLocation(currentId)；确认前先展示含子层件数")
+    }
+
     private companion object {
         const val SUBSCRIBE_TIMEOUT_MILLIS = 5_000L
     }
@@ -144,10 +172,20 @@ data class LocationBrowseUiState(
     val locationId: String? = null,
     /** 面包屑文本；根级显示 [ROOT_PATH_TEXT]。 */
     val pathText: String = ROOT_PATH_TEXT,
+    /**
+     * P1-02（FR-06）：当前层是否被标记为**临时位置**。
+     * 骨架期恒 false：由 `location.is_temporary` 读出后填入，随同层数据一并组装。
+     */
+    val isTemporary: Boolean = false,
     /** 当前层的直属子位置。 */
     val children: List<LocationTreeRow> = emptyList(),
-    /** 当前层的直属物品（FR-01；递归计数属 P1）。 */
+    /** 当前层的直属物品（FR-01）。 */
     val items: List<LocationItemUi> = emptyList(),
+    /**
+     * P1-02（FR-21）：当前层**含子层**的物品件数。
+     * 骨架期恒 0；页面届时展示「本层 N 件 / 含子层共 M 件」（递归口径见 P1 §8.1-7）。
+     */
+    val subtreeItemCount: Int = 0,
     /** 整棵位置树（供删除时的「迁移到…」目标选择）。 */
     val allRows: List<LocationTreeRow> = emptyList(),
 ) {

@@ -2,6 +2,7 @@ package com.dream.shouna.data.memory
 
 import com.dream.shouna.domain.model.Category
 import com.dream.shouna.domain.model.Location
+import com.dream.shouna.util.LocationPath
 
 /**
  * 内置常量唯一来源（ARCHITECTURE-P0 §3.3）：本页不再只有哨兵与分类，另含
@@ -31,20 +32,24 @@ object BuiltInData {
     )
 
     /**
-     * 8 条内置分类常量，F1 只读（§3.3）。
-     * 调用关系：8 × `Category(id, name, sortOrder)` 构造；被 `CategoryRepositoryImpl.observeCategories` 消费。
+     * 8 条内置分类常量（§3.3）。
+     * 调用关系：8 × `Category(id, name, isBuiltIn, sortOrder)` 构造；被
+     * [com.dream.shouna.data.local.SeedCallback] 写入 `category` 表（`is_built_in = 1`），
+     * 再由 `CategoryRepositoryImpl.observeCategories` 读出。
      * 取值口径（常量兜底，ARCHITECTURE §7.3 未钉死具体名单）：名称取自 PRD `FR-12` 的举例
      * 「电器/衣物/工具/文具/药品/其他…」并补足到 8 条；`sortOrder` 即 chips 排列顺序。
+     *
+     * P1-05（FR-44）：`isBuiltIn = true` 的这 8 条**可改名、不可删**（`prd/08` §7.4）。
      */
     val BUILT_IN_CATEGORIES: List<Category> = listOf(
-        Category(id = "builtin-category-appliance", name = "电器", sortOrder = 1),
-        Category(id = "builtin-category-clothing", name = "衣物", sortOrder = 2),
-        Category(id = "builtin-category-tool", name = "工具", sortOrder = 3),
-        Category(id = "builtin-category-stationery", name = "文具", sortOrder = 4),
-        Category(id = "builtin-category-medicine", name = "药品", sortOrder = 5),
-        Category(id = "builtin-category-food", name = "食品", sortOrder = 6),
-        Category(id = "builtin-category-daily", name = "日用", sortOrder = 7),
-        Category(id = "builtin-category-other", name = "其他", sortOrder = 8),
+        Category(id = "builtin-category-appliance", name = "电器", isBuiltIn = true, sortOrder = 1),
+        Category(id = "builtin-category-clothing", name = "衣物", isBuiltIn = true, sortOrder = 2),
+        Category(id = "builtin-category-tool", name = "工具", isBuiltIn = true, sortOrder = 3),
+        Category(id = "builtin-category-stationery", name = "文具", isBuiltIn = true, sortOrder = 4),
+        Category(id = "builtin-category-medicine", name = "药品", isBuiltIn = true, sortOrder = 5),
+        Category(id = "builtin-category-food", name = "食品", isBuiltIn = true, sortOrder = 6),
+        Category(id = "builtin-category-daily", name = "日用", isBuiltIn = true, sortOrder = 7),
+        Category(id = "builtin-category-other", name = "其他", isBuiltIn = true, sortOrder = 8),
     )
 
     /**
@@ -108,4 +113,25 @@ object BuiltInData {
             sortOrder = 5,
         ),
     )
+
+    // --- P1-01：种子位置的 `path`（写库前置计算） -----------------------------------
+    // 为什么在常量层算而不是在 SeedCallback 里算：`path` 是**迁移与建库两条路径必须同形**的字段
+    // （P1 §3.2），把它挂在常量旁、由同一个纯函数派生，才不会出现「新装库和升级库长得不一样」。
+
+    /**
+     * 种子位置（哨兵 + 默认位置树）的 id 序列路径：`/根id/…/自身id/`。
+     *
+     * 口径与 `Migrations.MIGRATION_1_2` 的递归回填一致（两者都由 [LocationPath.buildIdPath] 定义）；
+     * 被 [com.dream.shouna.data.local.SeedCallback.seedLocations] 消费。
+     */
+    val SEED_LOCATION_PATHS: Map<String, String> = run {
+        val all = BUILT_IN_LOCATIONS + DEFAULT_LOCATION_TREE
+        val byId = all.associateBy { it.id }
+        val cache = HashMap<String, String>(all.size)
+        fun pathOf(id: String): String = cache.getOrPut(id) {
+            val parentPath = byId.getValue(id).parentId?.let { pathOf(it) }.orEmpty()
+            LocationPath.buildIdPath(selfId = id, parentPath = parentPath)
+        }
+        all.associate { it.id to pathOf(it.id) }
+    }
 }
