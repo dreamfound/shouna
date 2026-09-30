@@ -41,6 +41,20 @@ interface ItemRepository {
     fun observeSearchDocs(): Flow<List<SearchDoc>>
 
     /**
+     * P1-07：**全部物品**文档流 —— 与 [observeSearchDocs] 同源同形，唯一区别是**不做活跃过滤**，
+     * 「已标记不在了」的物品也在其中。
+     *
+     * 【为什么必须是独立方法而不是给 [observeSearchDocs] 加开关】搜索的语义是「找还在的东西」，
+     * 让检索索引里混进 `gone` 条目会污染结果与打分基数；而 P-STATS 的「全部物品」明细要按状态
+     * 维度**筛出**「不在了」这一支。两者口径相反，用同一个入口就得靠调用方自觉传对开关，
+     * 迟早会有人传错。
+     *
+     * 【订阅代价】三条流的 join，比 P-STATS 卡片态的轻流重得多 —— 调用方必须**只在真的要看
+     * 全部物品时**才订阅它（见 `StatsViewModel` 的 `flatMapLatest`），不要塞进常驻 combine。
+     */
+    fun observeAllDocs(): Flow<List<SearchDoc>>
+
+    /**
      * FR-23：最近搜索词流（按最近使用倒序，上限 20 条），**仅搜索页空态**展示。
      *
      * 【归属说明】`ARCHITECTURE-P0` §2 只定了 3 个仓库（Item / Location / Category），
@@ -74,12 +88,12 @@ interface ItemRepository {
     // --- P1-03 / 04 / 06：编辑、批量确认、查重 ---------------------------------------
 
     /**
-     * P1-04：**补丁式**写入（分类 / 别名 / 数量 / 备注）。只写被显式给出的字段，其余原样。
+     * P1-04 + P1-07：**补丁式**写入（名称 / 分类 / 别名 / 数量 / 备注）。只写被显式给出的字段，其余原样。
      *
-     * 时间戳口径（P1 §3.5 / §3.4-10）：别名与数量的变化**不刷新** `last_modified_at`
+     * 时间戳口径（P1 §3.5 / §3.4-10）：名称、别名与数量的变化**不刷新** `last_modified_at`
      * ——它们不改变「东西在哪、还在不在」这个身份。
-     * 别名变更时**同一条语句内**一并重算 `pinyin_full` / `pinyin_initial`（别名与名称同档，
-     * 参检索）；因为落在一条 UPDATE 里，不需要事务包裹（守 `实现约束.md` §2-5）。
+     * 名称或别名变更时**同一条语句内**一并重算 `normalized_name` / `pinyin_full` / `pinyin_initial`
+     * （名称与别名同档参与检索）；因为落在一条 UPDATE 里，不需要事务包裹（守 `实现约束.md` §2-5）。
      *
      * 返回更新后的记录；未命中返回 null。空补丁不改任何列，直接回当前记录。
      */
@@ -160,6 +174,13 @@ interface ItemRepository {
  * `item` 表也没有对应字段 → 不并入本补丁（与 `ItemFieldPatch` 的原始形态一致）。
  */
 data class ItemFieldPatch(
+    /**
+     * 名称（P1-07，编辑页补齐）。`null` = 不改。
+     *
+     * 空白串由仓库层**忽略**（视为「不改」）而不是落成空名：名称是必填项，
+     * 「清空名称」不是一个合法意图，UI 侧也据此门控保存。
+     */
+    val name: String? = null,
     val categoryId: String? = null,
     /** 是否把分类置空（回落「未分类」）。与 [categoryId] 互斥，见类注释。 */
     val clearCategory: Boolean = false,

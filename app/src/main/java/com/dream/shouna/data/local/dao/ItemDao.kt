@@ -70,16 +70,22 @@ interface ItemDao {
     // --- P1-02 / 03 / 04：批量确认、补丁式更新、统计清单 --------------------------------
 
     /**
-     * P1-04（FR-14 / 别名 / 数量）：**补丁式**更新 —— 4 个字段各带一个「是否本次要改」开关。
+     * P1-04（FR-14 / 别名 / 数量）+ P1-07（名称）：**补丁式**更新 —— 各字段带一个「是否本次要改」开关。
      *
      * 为什么用 `CASE WHEN :applyX THEN ... ELSE 原值 END` 而不是「先查再拼 SQL」：
      * ① `category_id` / `note` 本身可空，`COALESCE(:value, column)` 无法区分「不改这一项」
      *    与「置为 NULL（未分类 / 清空备注）」，只有显式开关能表达；
      * ② 一条语句写完 = 单表写，不必引事务（守 `实现约束.md` §2-5、§2-6 的「不先查再写」）。
      *
-     * `pinyin_full` / `pinyin_initial` 跟随**别名**开关一起写：别名与名称同档参与检索
-     * （`SearchScorer` 的 `NAME` 档），别名一变检索键就得同事务重算（P1 §4 P1-04 ①）。
-     * 时间戳两列**都不在本语句内**：改分类 / 别名 / 备注 / 数量一律不刷新 `last_modified_at`
+     * 【两把拼音开关】`pinyin_full` / `pinyin_initial` 由 **`applyPinyin`** 驱动，而不是
+     * `applyAliases`：拼音键覆盖「名称 + 别名」（两者同档参与检索），**改名与改别名都得重算**
+     * ——名称变了却不重算，检索键就与名字脱钩。仓库层保证「`applyPinyin` 为真时，传进来的
+     * 拼音串是按**新名称 + 现有别名**算好的」。
+     *
+     * 同理 `name` 与 `normalized_name` 由 `applyName` 驱动：只写 `name` 不写 `normalized_name`
+     * 会让归一化名与名字脱钩（`SearchScorer` 的名称档用的是归一化名）。
+     *
+     * 时间戳两列**都不在本语句内**：改分类 / 别名 / 备注 / 数量 / 名称一律不刷新 `last_modified_at`
      * （P1 §3.4-10 / §3.5）。
      */
     @Query(
@@ -88,8 +94,10 @@ interface ItemDao {
             "alias_blob = CASE WHEN :applyAliases THEN :aliasBlob ELSE alias_blob END, " +
             "quantity = CASE WHEN :applyQuantity THEN :quantity ELSE quantity END, " +
             "note = CASE WHEN :applyNote THEN :note ELSE note END, " +
-            "pinyin_full = CASE WHEN :applyAliases THEN :pinyinFull ELSE pinyin_full END, " +
-            "pinyin_initial = CASE WHEN :applyAliases THEN :pinyinInitial ELSE pinyin_initial END " +
+            "name = CASE WHEN :applyName THEN :name ELSE name END, " +
+            "normalized_name = CASE WHEN :applyName THEN :normalizedName ELSE normalized_name END, " +
+            "pinyin_full = CASE WHEN :applyPinyin THEN :pinyinFull ELSE pinyin_full END, " +
+            "pinyin_initial = CASE WHEN :applyPinyin THEN :pinyinInitial ELSE pinyin_initial END " +
             "WHERE id = :id",
     )
     suspend fun updateFields(
@@ -104,6 +112,10 @@ interface ItemDao {
         note: String?,
         pinyinFull: String,
         pinyinInitial: String,
+        applyName: Boolean,
+        name: String,
+        normalizedName: String,
+        applyPinyin: Boolean,
     ): Int
 
     /**

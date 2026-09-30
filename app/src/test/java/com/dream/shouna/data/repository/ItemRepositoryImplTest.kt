@@ -376,6 +376,34 @@ class ItemRepositoryImplTest {
         assertThat(repository.observeSearchDocs().first().map { it.itemId }).containsExactly(alive.id)
     }
 
+    @Test
+    fun observeAllDocs_keepsGoneItemsThatSearchDocsHides() = runTest {
+        locationDao.insert(box())
+        val alive = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BOX_ID,
+        )
+        val removed = repository.createItemQuick(
+            name = "旧台灯",
+            categoryId = null,
+            note = null,
+            locationId = BOX_ID,
+        )
+        repository.setStatus(removed.id, ItemStatus.GONE)
+
+        // P1-07：两条流的差异就在这一个谓词上 —— 检索恒滤 `gone`（找的是还在的东西），
+        // 「全部物品」保留它（状态维度要靠这个差异才能筛出「不在了」）。
+        assertThat(repository.observeSearchDocs().first().map { it.itemId }).containsExactly(alive.id)
+
+        val all = repository.observeAllDocs().first()
+        assertThat(all.map { it.itemId }).containsExactly(alive.id, removed.id)
+        assertThat(all.single { it.itemId == removed.id }.status).isEqualTo(ItemStatus.GONE)
+        // 与检索文档同形：位置路径照样带上（「全部物品」的副标题要用）。
+        assertThat(all.single { it.itemId == alive.id }.locationPath).isEqualTo("卧室 › 纸箱-07")
+    }
+
     // ---- P0-04 最近搜索词（FR-23） ------------------------------------------------
 
     @Test
@@ -535,6 +563,66 @@ class ItemRepositoryImplTest {
         // 删掉别名 → 拼音键回落为名称单键。
         repository.updateFields(created.id, ItemFieldPatch(aliases = emptyList()))
         assertThat(itemDao.findById(created.id)?.pinyinFull).isEqualTo("dianfengshan")
+    }
+
+    @Test
+    fun updateFields_renameRecomputesNormalizedNameAndPinyinKeepingAliases() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+        repository.updateFields(created.id, ItemFieldPatch(aliases = listOf("台扇")))
+
+        // 只给 name、**不给** aliases —— 别名必须原样保留（补丁里 null = 不改）。
+        val renamed = repository.updateFields(created.id, ItemFieldPatch(name = "落地扇"))
+
+        assertThat(renamed?.name).isEqualTo("落地扇")
+        assertThat(renamed?.aliases).containsExactly("台扇")
+
+        val row = itemDao.findById(created.id)!!
+        // P1-07：归一化名必须与名称**同一条语句**写 —— `SearchScorer` 的名称档用的是归一化名，
+        // 只改 `name` 会让检索键与名字脱钩。
+        assertThat(row.normalizedName).isEqualTo(TextNormalizer.normalize("落地扇"))
+        // 拼音键 = 新名称 + **现有**别名 的合并键（不能拿 patch 里为 null 的别名去算，那样会丢掉旧别名）。
+        assertThat(row.pinyinFull).contains("luodishan")
+        assertThat(row.pinyinFull).contains("taishan")
+    }
+
+    @Test
+    fun updateFields_renameDoesNotTouchAnyTimestamp() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+        val before = itemDao.findById(created.id)!!
+
+        repository.updateFields(created.id, ItemFieldPatch(name = "落地扇"))
+
+        // §3.5 时间戳矩阵：改名**不是**「东西在哪 / 还在不在」的变化 → 三个时间列全不动。
+        val after = itemDao.findById(created.id)!!
+        assertThat(after.createdAt).isEqualTo(before.createdAt)
+        assertThat(after.lastModifiedAt).isEqualTo(before.lastModifiedAt)
+        assertThat(after.lastConfirmedAt).isEqualTo(before.lastConfirmedAt)
+    }
+
+    @Test
+    fun updateFields_blankNameIsIgnoredInsteadOfClearingTheName() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+
+        // 名称是必填项 → 纯空白视为「不改」，绝不会把名字写成空串（补丁里的空补丁语义）。
+        val unchanged = repository.updateFields(created.id, ItemFieldPatch(name = "   "))
+
+        assertThat(unchanged?.name).isEqualTo("电风扇")
+        assertThat(itemDao.findById(created.id)?.name).isEqualTo("电风扇")
     }
 
     @Test

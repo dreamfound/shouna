@@ -19,6 +19,10 @@ import androidx.compose.ui.unit.dp
  *
  * [onClick] 可空：`null` = **不可点**（不显示点击反馈），而非「可点但无反应」。
  * 骨架期传入 null（下钻未接），P1-03 接入明细态时传入下钻动作。
+ *
+ * [hint]（P1-07 新增）：可点时的**可见线索**。整块卡片的可点性没有任何默认视觉反馈，
+ * 不写一行提示，用户根本不会想到去点它 —— 那这个下钻入口等于不存在。
+ * `onClick == null` 时忽略它（不可点的卡片上写「查看…」是误导）。
  */
 @Composable
 fun StatCard(
@@ -26,6 +30,7 @@ fun StatCard(
     value: Int,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    hint: String? = null,
 ) {
     val cardModifier = if (onClick == null) {
         modifier.fillMaxWidth()
@@ -44,6 +49,13 @@ fun StatCard(
                 text = value.toString(),
                 style = MaterialTheme.typography.headlineMedium,
             )
+            if (hint != null && onClick != null) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }

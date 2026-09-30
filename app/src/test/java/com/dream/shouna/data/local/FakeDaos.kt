@@ -94,6 +94,10 @@ class FakeItemDao : ItemDao {
         note: String?,
         pinyinFull: String,
         pinyinInitial: String,
+        applyName: Boolean,
+        name: String,
+        normalizedName: String,
+        applyPinyin: Boolean,
     ): Int = updateWhere(
         predicate = { it.id == id },
         transform = { row ->
@@ -102,8 +106,12 @@ class FakeItemDao : ItemDao {
                 aliasBlob = if (applyAliases) aliasBlob else row.aliasBlob,
                 quantity = if (applyQuantity) quantity else row.quantity,
                 note = if (applyNote) note else row.note,
-                pinyinFull = if (applyAliases) pinyinFull else row.pinyinFull,
-                pinyinInitial = if (applyAliases) pinyinInitial else row.pinyinInitial,
+                // P1-07：名称与归一化名同开关（真实 SQL 里也是同一个 `:applyName`）。
+                name = if (applyName) name else row.name,
+                normalizedName = if (applyName) normalizedName else row.normalizedName,
+                // 拼音由独立的 `applyPinyin` 驱动：改名与改别名都要重算（名称 + 别名的合并键）。
+                pinyinFull = if (applyPinyin) pinyinFull else row.pinyinFull,
+                pinyinInitial = if (applyPinyin) pinyinInitial else row.pinyinInitial,
             )
         },
     )

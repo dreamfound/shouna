@@ -16,6 +16,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.dream.shouna.ui.component.clearFocusOnTap
 import com.dream.shouna.ui.screen.add.QuickAddRoute
 import com.dream.shouna.ui.screen.category.CategoryManageRoute
 import com.dream.shouna.ui.screen.home.HomeRoute
@@ -57,6 +58,10 @@ private const val NAV_TRANSITION_MILLIS = 400
  * **含 IME**（2026-09-29 由「不含 IME」改）：键盘弹起时容器整体上移，录入页的「保存并继续」
  * 浮在键盘上方可点 —— 保存的唯一入口是按钮，IME 完成键只收起键盘，不代替保存。
  *
+ * **点空白收键盘**（`clearFocusOnTap`）同样只挂在本层，紧跟在避让**之后**（即可点区 = 键盘上方
+ * 的可见区）：键盘是窗口级状态，与避让同源，页面不各自处理。子控件吃掉点击后事件不冒泡，
+ * 故只有真正无人接管的空白区会落到它（详见该函数注释）。
+ *
  * P1 新增的 4 条（[Stats] / [ItemEdit] / [Settings] / [CategoryManage]）在**同一张 NavHost** 上注册，
  * 不引入嵌套图：它们的返回行为与既有 5 页一致（普通 `popBackStack`），统计的卡片/明细两态
  * 在 `StatsScreen` 内部消化，不占路由（P1 §8.1-16）。
@@ -69,7 +74,7 @@ fun RouteHandler(modifier: Modifier = Modifier) {
         startDestination = Home,
         modifier = modifier.windowInsetsPadding(
             WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime),
-        ),
+        ).clearFocusOnTap(),
         enterTransition = { fadeIn(animationSpec = tween(NAV_TRANSITION_MILLIS)) },
         exitTransition = { fadeOut(animationSpec = tween(NAV_TRANSITION_MILLIS)) },
     ) {

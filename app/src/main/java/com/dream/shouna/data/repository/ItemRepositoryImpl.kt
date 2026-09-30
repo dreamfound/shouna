@@ -90,13 +90,20 @@ class ItemRepositoryImpl @Inject constructor(
      *
      * `combine` 三条流任一变化都会重建，这是**有意**的：位置改名 / 移动会改变路径与路径拼音，
      * 索引必须跟着重建才守得住 FR-03「改名后所有路径展示自动跟随」。
+     *
+     * P1-07 起与 [observeAllDocs] 共用同一份构建逻辑（仅「是否滤掉 gone」不同）。
      */
-    override fun observeSearchDocs(): Flow<List<SearchDoc>> =
+    override fun observeSearchDocs(): Flow<List<SearchDoc>> = observeDocs(activeOnly = true)
+
+    /** P1-07「全部物品」：同源同形，但保留 `gone`（状态筛选要能筛出「不在了」）。 */
+    override fun observeAllDocs(): Flow<List<SearchDoc>> = observeDocs(activeOnly = false)
+
+    private fun observeDocs(activeOnly: Boolean): Flow<List<SearchDoc>> =
         combine(
             itemDao.observeAll(),
             categoryRepository.observeCategories(),
             locationDao.observeAll(),
-        ) { rows, categories, locations -> buildSearchDocs(rows, categories, locations) }
+        ) { rows, categories, locations -> buildSearchDocs(rows, categories, locations, activeOnly) }
 
     override fun observeRecentQueries(): Flow<List<String>> =
         recentSearchDao.observeRecent(RecentSearchDao.RECENT_SEARCH_LIMIT)
@@ -157,13 +164,16 @@ class ItemRepositoryImpl @Inject constructor(
     // --- P1-02 / 03 / 04 / 06：编辑、批量确认、查重 ---------------------------------------
 
     override suspend fun updateFields(itemId: String, patch: ItemFieldPatch): StoredItem? {
+        // 名称：空白串视为「不改」（名称必填，清空不是合法意图）。落库前 trim。
+        val newName = patch.name?.trim()?.takeIf { it.isNotEmpty() }
+        val applyName = newName != null
         val applyCategory = patch.clearCategory || patch.categoryId != null
         val applyAliases = patch.aliases != null
         val applyQuantity = patch.quantity != null
         val applyNote = patch.note != null
 
-        // 四项都没给 = 空补丁：不改任何列，但仍按「命中即返回当前记录」的既有语义回值。
-        if (!applyCategory && !applyAliases && !applyQuantity && !applyNote) {
+        // 各字段都没给 = 空补丁：不改任何列，但仍按「命中即返回当前记录」的既有语义回值。
+        if (!applyName && !applyCategory && !applyAliases && !applyQuantity && !applyNote) {
             return itemDao.findById(itemId)?.toDomain()
         }
 
@@ -171,12 +181,22 @@ class ItemRepositoryImpl @Inject constructor(
         val quantity = patch.quantity
         if (quantity != null && quantity < 1) return null
 
-        // 别名编码 + 拼音重算。拼音列取「名称 + 别名」的全拼/首字母：别名与名称同档参与检索，
-        // 若只拿名称算拼音，「用拼音搜别名」就会漏（P1 §4 P1-04 ①）。
         val aliasBlob = patch.aliases?.let { encodeAliases(it) } ?: ""
-        val (pinyinFull, pinyinInitial) = if (applyAliases) {
-            val name = itemDao.findById(itemId)?.name ?: return null
-            pinyinUtil.keys(joinForPinyin(name, patch.aliases.orEmpty()))
+
+        // 拼音键覆盖「名称 + 别名」（两者同档参与检索）→ 任一侧变化都要重算。
+        //
+        // 【为什么必须读一次当前行】改名的补丁里 `aliases` 是 null（用户没碰别名），
+        // 只拿 patch 里的别名去算会把现有别名丢掉；反之只改别名时名称要从库里取。
+        // 两边都以「本次要落库的最终值」为准，而不是「patch 里有的值」。
+        val applyPinyin = applyName || applyAliases
+        val (pinyinFull, pinyinInitial) = if (applyPinyin) {
+            val current = itemDao.findById(itemId) ?: return null
+            pinyinUtil.keys(
+                joinForPinyin(
+                    name = newName ?: current.name,
+                    aliases = patch.aliases ?: decodeAliases(current.aliasBlob),
+                ),
+            )
         } else {
             "" to ""
         }
@@ -194,9 +214,15 @@ class ItemRepositoryImpl @Inject constructor(
             note = patch.note?.trim()?.ifBlank { null },
             pinyinFull = pinyinFull,
             pinyinInitial = pinyinInitial,
+            applyName = applyName,
+            name = newName.orEmpty(),
+            // 归一化名必须与名称同一次写：`SearchScorer` 的名称档用的是归一化名，
+            // 只改 `name` 会让检索键与名字脱钩（P1-07）。
+            normalizedName = newName?.let { deriveNormalizedName(it) }.orEmpty(),
+            applyPinyin = applyPinyin,
         )
         if (affected == 0) return null
-        // 时间戳口径（§3.4-10 / §3.5）：本方法**不写任何时间列** —— 改分类 / 别名 / 数量 / 备注
+        // 时间戳口径（§3.4-10 / §3.5）：本方法**不写任何时间列** —— 改分类 / 别名 / 数量 / 备注 / 名称
         // 都不是「东西在哪、还在不在」的变化，`created_at` / `last_modified_at` / `last_confirmed_at` 全不动。
         return itemDao.findById(itemId)?.toDomain()
     }
@@ -261,16 +287,20 @@ class ItemRepositoryImpl @Inject constructor(
      *
      * 位置拼音在**本批内按路径文本缓存**：一个位置只拼音化一次，代价与物品数（及重复物品数）
      * 脱钩（§8.1-10 的「构建时实时拼音化 + 同名缓存，不落库」）。
+     *
+     * [activeOnly] = true（检索输入）滤掉 `gone`；false（P1-07 全部物品）保留全部行。
      */
     private fun buildSearchDocs(
         rows: List<ItemEntity>,
         categories: List<Category>,
         locations: List<LocationEntity>,
+        activeOnly: Boolean,
     ): List<SearchDoc> {
         val categoryNameById = categories.associate { it.id to it.name }
         val locationPathById = LocationPath.textsOf(locations.map { it.toDomain() })
         val locationPinyinCache = HashMap<String, String>()
-        return rows.filter { it.status.isActive }.map { row ->
+        val scopedRows = if (activeOnly) rows.filter { it.status.isActive } else rows
+        return scopedRows.map { row ->
             val path = locationPathById[row.locationId].orEmpty()
             row.toSearchDoc(
                 categoryNameById = categoryNameById,

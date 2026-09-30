@@ -60,13 +60,29 @@ import kotlinx.coroutines.withContext
  * 换「绝不误删用户刚拍的照片」，这个交易划算。真要收干净，应在下次启动时做一次
  * 「文件 vs 数据库」的对账扫描，那是另一个量级的改动。
  *
- * 被调用方：`ui/screen/add/QuickAddScreen.kt`。
+ * 【P1-07 新增 [deleteReplacedImmediately]：编辑页必须关掉它】
+ * 本组件默认在「选中新图」的瞬间就删掉被替换的旧文件 —— 录入场景（物品尚不存在）无害，
+ * 但**编辑场景是错的**：用户选完新图又按返回不保存时，库里 `photo_path` 仍指向那个**已被删除**
+ * 的旧文件，详情页从此永远显示不出照片。
+ *
+ * 关掉后（编辑页）：三条替换 / 移除路径都不删文件，旧文件名的删除责任交给调用方
+ * ——它在**保存成功之后**才删（此时库里已经换成新名字，删旧文件才是安全的）。
+ * 代价与上面同一个孤儿文件取舍一致：取消保存会留下一个无人引用的文件，但不丢图。
+ *
+ * 被调用方：`ui/screen/add/QuickAddScreen.kt`（默认值）、`ui/screen/itemedit/ItemEditScreen.kt`（传 false）。
  */
 @Composable
 fun PhotoInputRow(
     photoName: String?,
     onPhotoChanged: (String?) -> Unit,
     enabled: Boolean = true,
+    /**
+     * 被替换 / 被移除的旧照片文件是否**当场删除**。
+     *
+     * `true`（默认）= 录入页语义：图片还没入库，旧文件立刻无用，删掉最省空间。
+     * `false` = 编辑页语义：**延迟到保存成功后**由调用方删，取消编辑不产生任何删除。
+     */
+    deleteReplacedImmediately: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -82,9 +98,13 @@ fun PhotoInputRow(
         val name = pendingCaptureName
         pendingCaptureName = null
         if (saved && name != null) {
-            if (photoName != null && photoName != name) PhotoStore.delete(context, photoName)
+            if (deleteReplacedImmediately && photoName != null && photoName != name) {
+                PhotoStore.delete(context, photoName)
+            }
             onPhotoChanged(name)
         } else {
+            // 这一条**与开关无关**：删的是本组件刚建出来的那个空文件（拍照被取消），
+            // 它从未被上报给上层、也不属于任何人 —— 留着只会攒 0 字节垃圾。
             PhotoStore.delete(context, name)
         }
     }
@@ -99,7 +119,9 @@ fun PhotoInputRow(
                 val imported = withContext(Dispatchers.IO) { PhotoStore.importFromUri(context, uri) }
                 importing = false
                 if (imported != null) {
-                    if (photoName != null) PhotoStore.delete(context, photoName)
+                    if (deleteReplacedImmediately && photoName != null) {
+                        PhotoStore.delete(context, photoName)
+                    }
                     onPhotoChanged(imported)
                 }
             }
@@ -152,7 +174,9 @@ fun PhotoInputRow(
                 if (photoName != null) {
                     TextButton(
                         onClick = {
-                            PhotoStore.delete(context, photoName)
+                            // 与「换图」同一分支逻辑：延迟模式下**只清名字**，文件留给保存成功后的调用方删
+                            // （此时取消编辑，库里仍指着这个文件，删了就丢图）。
+                            if (deleteReplacedImmediately) PhotoStore.delete(context, photoName)
                             onPhotoChanged(null)
                         },
                         enabled = enabled && !importing,
