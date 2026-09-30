@@ -73,6 +73,18 @@ data class ItemEntity(
     /** 可选备注。 */
     @ColumnInfo(name = "note")
     val note: String?,
+    /**
+     * FR-16：照片的**文件名**（不是绝对路径），null = 没拍照。
+     *
+     * 存文件名而非绝对路径：`filesDir` 的绝对路径在换机 / 换安装位置后会变，而文件名不变；
+     * 绝对路径由 `util/PhotoStore.fileOf` 现算。图片本体在 `filesDir/photos/`，
+     * 随卸载一起消失（「仅存本机、无任何备份通道」口径，NFR-09 / §9.1）。
+     *
+     * 本次迁移（`2 → 3`）新增；存量行回填 NULL，故带默认值 —— 既有构造点（含测试夹具）
+     * 不必逐个补参。
+     */
+    @ColumnInfo(name = "photo_path")
+    val photoPath: String? = null,
     /** epoch millis UTC。 */
     @ColumnInfo(name = "created_at")
     val createdAt: Long,

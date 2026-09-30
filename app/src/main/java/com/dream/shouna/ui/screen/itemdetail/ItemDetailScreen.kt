@@ -1,5 +1,7 @@
 package com.dream.shouna.ui.screen.itemdetail
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -17,12 +20,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,6 +42,9 @@ import com.dream.shouna.ui.component.OverdueMark
 import com.dream.shouna.ui.component.RelativeTimeText
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemEdit
+import com.dream.shouna.util.PhotoStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 有状态包装层（ARCHITECTURE §2）：取 ViewModel、把 UiState 与位置树下传。
@@ -44,6 +56,7 @@ fun ItemDetailRoute(itemId: String) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locationTree by viewModel.locationTree.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
+    val context = LocalContext.current
 
     LaunchedEffect(itemId) {
         viewModel.load(itemId)
@@ -58,6 +71,12 @@ fun ItemDetailRoute(itemId: String) {
         onMarkToBePutBack = viewModel::onMarkToBePutBack,
         onPutBackToStorage = viewModel::onPutBackToStorage,
         onMoveTo = viewModel::onMoveTo,
+        // FR-16：先删文件、再清库里的名字。顺序反过来会先丢掉「旧文件名」这个唯一的线索，
+        // 文件就再也找不到、删不掉了。中途失败最多留下一个孤儿文件（无害）。
+        onRemovePhoto = {
+            PhotoStore.delete(context, uiState.photoName)
+            viewModel.onRemovePhoto()
+        },
         onEditClick = { navController.goItemEdit(itemId) },
     )
 }
@@ -85,6 +104,7 @@ fun ItemDetailScreen(
     onMarkToBePutBack: () -> Unit,
     onPutBackToStorage: () -> Unit,
     onMoveTo: (String) -> Unit,
+    onRemovePhoto: () -> Unit,
     onEditClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -93,7 +113,9 @@ fun ItemDetailScreen(
 
     // 折叠区开合与「移动到…」弹层都是纯粹的本页 UI 态，不进 ViewModel。
     var moreExpanded by remember { mutableStateOf(false) }
-    var moving by remember { mutableStateOf(false) }
+    // 「移动到…」的开关在本页**只写不读**（`movePickerVisible.value = true` 不建立订阅），
+    // 读取下沉到 [ItemDetailMovePicker] —— 读在哪，失效就只到哪。
+    val movePickerVisible = remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -108,6 +130,21 @@ fun ItemDetailScreen(
         )
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        // FR-16：照片（最直接的辨识物，放在位置面包屑之前）。没有照片时整块不渲染 ——
+        // 详情页对没拍过照的物品保持 P1 的原样，不凭空多出一块占位。
+        //
+        // 先取到局部变量再判空：`uiState.photoName` 是带自定义 getter 的计算属性
+        // （`item?.photoPath`），Kotlin 不对它做智能转换。
+        val photoName = uiState.photoName
+        if (photoName != null) {
+            ItemPhoto(
+                photoName = photoName,
+                onRemove = onRemovePhoto,
+                enabled = actionsEnabled,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         // FR-02：位置面包屑（长按复制）。为空时整行不渲染。
         LocationBreadcrumb(pathText = uiState.locationPath)
@@ -201,7 +238,7 @@ fun ItemDetailScreen(
                 }
             }
 
-            TextButton(onClick = { moving = true }, enabled = actionsEnabled) {
+            TextButton(onClick = { movePickerVisible.value = true }, enabled = actionsEnabled) {
                 Text(text = "移动到…")
             }
 
@@ -211,18 +248,37 @@ fun ItemDetailScreen(
         }
     }
 
-    // P1-04：移动到另一个位置（复用位置选择弹层；目标从既有位置里挑）。
-    if (moving) {
+    ItemDetailMovePicker(
+        isVisible = movePickerVisible,
+        rows = locationTree,
+        onSelect = onMoveTo,
+        onDismiss = { movePickerVisible.value = false },
+    )
+}
+
+/**
+ * 「移动到…」弹层的**薄宿主**：本页对该开关的唯一读取点。
+ *
+ * 开关若在 [ItemDetailScreen] 体内读，每次开合都会把整页拖进重组（名称、面包屑、两行时间、
+ * 按钮区、折叠区）。下沉后父层**只写不读**，开合仅重跑本层与弹层子树。
+ *
+ * 挂载位置不影响观感：`LocationPickerSheet` 渲染为**独立 Dialog 窗口**，在组合树里的位置不决定层级。
+ */
+@Composable
+private fun ItemDetailMovePicker(
+    isVisible: MutableState<Boolean>,
+    rows: List<LocationTreeRow>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (isVisible.value) {
         LocationPickerSheet(
-            rows = locationTree,
+            rows = rows,
             recentLocations = emptyList(),
             selectedLocationId = null,
-            onSelect = { locationId ->
-                onMoveTo(locationId)
-                moving = false
-            },
+            onSelect = onSelect,
             onCreateLocation = { /* 移动目标从既有位置里挑，不支持此处新建 */ },
-            onDismiss = { moving = false },
+            onDismiss = onDismiss,
             allowCreate = false,
         )
     }
@@ -253,3 +309,46 @@ private fun DetailField(
 /** 折叠区「标签 / 值」两列宽度比（标签窄一些，长别名与长分类名都留给值列）。 */
 private const val LABEL_WEIGHT = 0.28f
 private const val VALUE_WEIGHT = 0.72f
+
+/**
+ * FR-16：详情页的照片 + 「移除照片」。
+ *
+ * 解码走 [produceState] + `Dispatchers.IO`：`BitmapFactory` 是阻塞调用，放组合里会在首帧
+ * 直接卡一次（`gfxutil` 上就是一次掉帧）。`key1 = photoName` 保证换了照片才重新解码。
+ *
+ * 移除只在**这里**给一次：录入页可以随意重拍，但存下来之后「删掉照片」是一个破坏性动作，
+ * 收在照片自己下面、离它最近，比塞进「⋯更多」折叠区更好找。
+ */
+@Composable
+private fun ItemPhoto(
+    photoName: String,
+    onRemove: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = photoName) {
+        value = withContext(Dispatchers.IO) { PhotoStore.decode(context, photoName, DETAIL_PX) }
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        val image = bitmap
+        if (image != null) {
+            Image(
+                bitmap = image.asImageBitmap(),
+                contentDescription = "物品照片",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+            )
+        }
+        TextButton(onClick = onRemove, enabled = enabled) {
+            Text(text = "移除照片")
+        }
+    }
+}
+
+/** 详情页照片解码的目标边长（约 200dp 高 × 3x 屏）。 */
+private const val DETAIL_PX = 720

@@ -32,6 +32,14 @@ data class StoredItem(
     val quantity: Int = 1,
     /** F1 唯一可选字段（折叠）。 */
     val note: String? = null,
+    /**
+     * FR-16：照片的**文件名**（如 `a1b2….jpg`），null = 没拍照。
+     *
+     * 只带文件名、不带绝对路径：路径由 `util/PhotoStore.fileOf(context, name)` 现算，
+     * 领域模型保持「不依赖 Android 框架」（本类顶部约定）。图片本体在 `filesDir/photos/`，
+     * 随卸载消失。
+     */
+    val photoPath: String? = null,
     /** epoch millis UTC。 */
     val createdAt: Long,
     /** epoch millis UTC。 */

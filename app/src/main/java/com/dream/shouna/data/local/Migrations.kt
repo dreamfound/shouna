@@ -4,14 +4,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * 迁移链（ARCHITECTURE-P1 §3.2）：本工程的**首个真实迁移**。
+ * 迁移链（ARCHITECTURE-P1 §3.2 起）：`1 → 2`（`location.path`）、`2 → 3`（`item.photo_path`）。
  *
- * `version` 1 → 2 只做一件事：物化 `location.path`（ID 序列，形如 `/根id/…/自身id/`）。
- * **不启用** `fallbackToDestructiveMigration` —— 那一句会让所有升级用户数据全丢，
- * 与「数据仅本机、卸载即永久丢失」的 FR-41 正面冲突（P1 §8.1-1）。
+ * 两条迁移都遵守同一条底线：**不启用** `fallbackToDestructiveMigration` —— 那一句会让所有
+ * 升级用户数据全丢，与「数据仅本机、卸载即永久丢失」的 FR-41 正面冲突（P1 §8.1-1）。
  *
  * 挂载点：[com.dream.shouna.di.DatabaseModule] 的 `Room.databaseBuilder(...).addMigrations(...)`。
- * 新建库不走本链：全新安装由 [SeedCallback] 直接按同一形态写入 `path`（P1 §3.2 注）。
+ * 新建库不走本链：全新安装由 [SeedCallback] 直接按同一形态写入（P1 §3.2 注）。
  *
  * 被调用方：`DatabaseModule.provideShounaDatabase`
  */
@@ -51,6 +50,25 @@ object Migrations {
 
             // ③ 普通前缀索引。名称必须是 `index_location_path` —— Room 的 schema 校验按名字比对。
             db.execSQL("CREATE INDEX IF NOT EXISTS index_location_path ON location(path)")
+        }
+    }
+
+    /**
+     * `2 → 3`：加 `item.photo_path` 列（FR-16 拍照记录物品）。
+     *
+     * 与 [MIGRATION_1_2] 的两点不同，都是刻意的：
+     * ① **可空、不带 `DEFAULT`** —— 「没拍过照」的真值与「空串」是两回事，用 NULL 表达；
+     *    SQLite 的 `ALTER TABLE ADD COLUMN` 只有加 `NOT NULL` 列时才强制要求 `DEFAULT`，
+     *    可空列可以直接加，存量行自动落 NULL。
+     * ② **只加列，不建索引、不回填、不动任何既有列**。照片列不参与任何查询条件或排序，
+     *    建索引只会增加写入成本；也不需要 UPDATE —— NULL 就是正确的初始值。
+     *
+     * **图片本体不在此列**：文件名指向 `filesDir/photos/` 下的文件（`util/PhotoStore`）。
+     * 迁移只搬元数据；换机 / 误卸载时数据库与图片一起消失（「仅存本机」口径）。
+     */
+    val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE item ADD COLUMN photo_path TEXT")
         }
     }
 }

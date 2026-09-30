@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 的可暴露路径白名单（配合 AndroidManifest 的 `${applicationId}.fileprovider`）。
+
+  只暴露一件事：应用私有目录下的 `photos/`（`util/PhotoStore` 的唯一存放点）。
+  - `files-path` 对应 `Context.getFilesDir()`；`path="photos/"` 把白名单限制在该子目录，
+    不给相机应用任何越权读取的机会。
+  - 不暴露 `cache/` 与外部存储：照片必须随 App 一起被卸载清掉（「仅存本机、无任何备份通道」口径）。
+-->
+<paths>
+    <files-path
+        name="photo_files"
+        path="photos/" />
+</paths>

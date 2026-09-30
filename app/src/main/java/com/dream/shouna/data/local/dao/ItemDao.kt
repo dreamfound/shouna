@@ -175,6 +175,19 @@ interface ItemDao {
      */
     @Query("UPDATE item SET location_id = :locationId, last_modified_at = :modifiedAt WHERE id = :id")
     suspend fun moveItem(id: String, locationId: String, modifiedAt: Long): Int
+
+    /**
+     * FR-16：**只写** `photo_path`（`null` = 移除照片）。
+     *
+     * 时间戳一列都不动：照片既不是「东西在哪」也不是「还在不在」，按 §3.5 矩阵的口径
+     * 它不改 `last_modified_at`，更不是一次确认。这也是「移除照片不会让物品在列表里的
+     * 排序 / 超期判定发生变化」的原因。
+     *
+     * 用一条独立语句而不是并入 [updateFields]：那个方法是「补丁 + 逐项开关」的形态，
+     * 再加第三个「可空字段的显式置空开关」会让它更难读；照片只有「设/清」两态，单独写更直白。
+     */
+    @Query("UPDATE item SET photo_path = :photoPath WHERE id = :id")
+    suspend fun updatePhoto(id: String, photoPath: String?): Int
 }
 
 /** `location_id → 直属活跃件数` 的查询投影（Room 投影类，不入表）。 */

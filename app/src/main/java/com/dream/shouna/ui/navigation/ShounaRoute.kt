@@ -15,8 +15,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object Home
 
+/**
+ * P-ADD（FR-09 / 10 / 11 / 12）。
+ *
+ * `locationId` 非 null = **从 P-BROWSE 的「＋ 往这里记一件」进来**，录入页位置条预选该位置；
+ * null = 首页「＋ 记一件」进来，位置条走「最近使用」预选（F1 既有行为）。
+ * —— 这条参数即 `prd/07` §6.2 跳转图里 `BROWSE --> ADD` 那条边的落地。
+ */
 @Serializable
-data object QuickAdd
+data class QuickAdd(val locationId: String? = null)
 
 @Serializable
 data class Search(val initialQuery: String? = null)

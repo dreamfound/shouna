@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+      语音录入（FR-18 的简化形态）：系统语音识别需要录音权限。
+      **仍然不申请 `INTERNET`** —— 识别由系统识别服务（独立进程）完成，本应用自身不联网，
+      NFR-01 / NFR-02 全文有效。识别请求带 `EXTRA_PREFER_OFFLINE`，能用设备本地识别就不出机。
+
+      拍照（FR-16）：走系统相机（`ACTION_IMAGE_CAPTURE`）与系统相册选择器，
+      **刻意不声明 `CAMERA` 权限** —— 一旦声明，系统相机 Intent 反而要求该权限已被授予；
+      不声明则由相机应用自己持有，本应用只拿到结果 URI。
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 11+ 包可见性：要让 `ACTION_IMAGE_CAPTURE` 能被解析到系统相机。 -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ShounaApplication"
         android:allowBackup="false"
@@ -23,6 +41,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          拍照结果的落点：系统相机是**另一个进程**，直接给它应用私有目录的 `File` 是拿不到的，
+          必须经 FileProvider 换成一个带临时授权的 `content://` URI（`grantUriPermissions`）。
+          路径白名单见 `res/xml/file_paths.xml`（只暴露 `filesDir/photos/`）。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

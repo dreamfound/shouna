@@ -21,12 +21,17 @@ interface ItemRepository {
      *
      * 时间戳（§3.5，2026-09-30 修订）：`createdAt` / `lastModifiedAt` / `lastConfirmedAt`
      * **取同一次 now** —— 录入即一次确认，新物品不会立刻被判超期。
+     *
+     * [photoPath] 是**已经存好的**照片文件名（`util/PhotoStore` 的产物），本方法只落库、
+     * 不碰文件系统 —— 让仓库层继续不依赖 `Context`。因为排在参数表末尾且带默认值，
+     * 既有调用点（含单测里的位置参数写法）无需改动。
      */
     suspend fun createItemQuick(
         name: String,
         categoryId: String?,
         note: String?,
         locationId: String,
+        photoPath: String? = null,
     ): StoredItem
 
     /** 首页 `isEmpty` 判定用的条目摘要流。 */
@@ -109,6 +114,15 @@ interface ItemRepository {
      * P1-04：把物品**移动**到另一个位置（详情页折叠区的「移动到…」）。不改状态、不写确认时间。
      */
     suspend fun moveItem(itemId: String, locationId: String): StoredItem?
+
+    /**
+     * FR-16：设置 / 移除照片（`photoName = null` = 移除）。**不写任何时间列**。
+     *
+     * 与 [createItemQuick] 的 `photoPath` 参数同一取向：本方法只写文件名、不碰文件系统，
+     * 图片文件的新建与删除由调用方经 `util/PhotoStore` 完成。
+     * 未命中返回 null。
+     */
+    suspend fun setPhoto(itemId: String, photoName: String?): StoredItem?
 
     /**
      * P1-03（C-1 第一块）：物品总数 = 非 `gone`（即 `in_storage` + `to_be_put_back`）。

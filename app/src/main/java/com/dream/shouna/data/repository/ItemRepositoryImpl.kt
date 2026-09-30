@@ -53,6 +53,7 @@ class ItemRepositoryImpl @Inject constructor(
         categoryId: String?,
         note: String?,
         locationId: String,
+        photoPath: String?,
     ): StoredItem {
         // 时间戳矩阵（§3.5，2026-09-30 修订）：三个时间列取**同一次** now —— 录入本身就是一次
         // 「我知道它在这儿」的确认。留 NULL 会让刚存进去的物品立刻被判超期
@@ -68,6 +69,9 @@ class ItemRepositoryImpl @Inject constructor(
             locationId = locationId,
             categoryId = categoryId,
             note = note,
+            // FR-16：照片文件名（可为 null）。文件本体已由调用方（QuickAddViewModel 经
+            // `util/PhotoStore`）写入 `filesDir/photos/`，这里只记名。
+            photoPath = photoPath,
             createdAt = now,
             lastModifiedAt = now,
             lastConfirmedAt = now,
@@ -233,6 +237,13 @@ class ItemRepositoryImpl @Inject constructor(
         return itemDao.findById(itemId)?.toDomain()
     }
 
+    override suspend fun setPhoto(itemId: String, photoName: String?): StoredItem? {
+        // 只写 photo_path 一列（§3.5 矩阵：照片既非「位置」也非「状态」，不刷任何时间列）。
+        val affected = itemDao.updatePhoto(id = itemId, photoPath = photoName)
+        if (affected == 0) return null
+        return itemDao.findById(itemId)?.toDomain()
+    }
+
     override fun observeActiveItemCount(): Flow<Int> = itemDao.observeActiveCount()
 
     override fun observeOverdueItems(thresholdMonths: Int): Flow<List<StoredItem>> {
@@ -291,6 +302,7 @@ internal fun StoredItem.toEntity(pinyinFull: String, pinyinInitial: String): Ite
         status = status,
         quantity = quantity,
         note = note,
+        photoPath = photoPath,
         createdAt = createdAt,
         lastModifiedAt = lastModifiedAt,
         lastConfirmedAt = lastConfirmedAt,
@@ -314,6 +326,7 @@ internal fun ItemEntity.toDomain(): StoredItem = StoredItem(
     status = status,
     quantity = quantity,
     note = note,
+    photoPath = photoPath,
     createdAt = createdAt,
     lastModifiedAt = lastModifiedAt,
     lastConfirmedAt = lastConfirmedAt,

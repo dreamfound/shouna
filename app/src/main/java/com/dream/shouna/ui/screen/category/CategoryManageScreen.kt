@@ -17,6 +17,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,23 +35,31 @@ import com.dream.shouna.ui.navigation.popBack
 /**
  * 有状态包装层（ARCHITECTURE §2）。二次确认的态在 ViewModel（[CategoryManageViewModel.pendingDeleteId]），
  * 页面只负责渲染，避免「对话框开着但状态已变」这类两边各存一份的问题。
+ *
+ * 删除对话框**与本层平级**下发、不经过 [CategoryManageScreen]（见 [CategoryDeleteDialog]）：
+ * 开关是 ViewModel 态，但页面本身不该为它重组。
  */
 @Composable
 fun CategoryManageRoute() {
     val viewModel: CategoryManageViewModel = hiltViewModel()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val pendingDeleteId by viewModel.pendingDeleteId.collectAsStateWithLifecycle()
+    // **本层不调 `.value`**（故用 `val` 而非 `by`）：只持有 State 对象，读取落在 [CategoryDeleteDialog]。
+    val pendingDeleteId = viewModel.pendingDeleteId.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
 
     CategoryManageScreen(
         categories = categories,
-        pendingDeleteId = pendingDeleteId,
         onCreate = viewModel::onCreate,
         onRename = viewModel::onRename,
         onRequestDelete = viewModel::onRequestDelete,
-        onConfirmDelete = viewModel::onConfirmDelete,
-        onDismissDelete = viewModel::onDismissDelete,
         onBack = { navController.popBack() },
+    )
+
+    CategoryDeleteDialog(
+        pendingDeleteId = pendingDeleteId,
+        categories = categories,
+        onConfirm = viewModel::onConfirmDelete,
+        onDismiss = viewModel::onDismissDelete,
     )
 }
 
@@ -60,21 +70,21 @@ fun CategoryManageRoute() {
  * 删除**必须二次确认**（`实现约束.md` §4-2）：其下物品会回落「未分类」，是个不可逆的语义变化。
  *
  * 删除后列表自动刷新（数据源是 `observeCategories` 的流），本页不做手工重取。
+ *
+ * 弹层开关不在本页参数里、也不在本页读取 —— 见 [CategoryNameDialogs] / [CategoryDeleteDialog]。
  */
 @Composable
 fun CategoryManageScreen(
     categories: List<Category>,
-    pendingDeleteId: String?,
     onCreate: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onRequestDelete: (String) -> Unit,
-    onConfirmDelete: () -> Unit,
-    onDismissDelete: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var creating by remember { mutableStateOf(false) }
-    var renamingTarget by remember { mutableStateOf<Category?>(null) }
+    // 两个开关在本页**只写不读**（`flag.value = …` 不建立订阅），读取下沉到 [CategoryNameDialogs]。
+    val creating = remember { mutableStateOf(false) }
+    val renamingTarget = remember { mutableStateOf<Category?>(null) }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -89,7 +99,7 @@ fun CategoryManageScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { creating = true }) { Text(text = "＋ 新建") }
+            TextButton(onClick = { creating.value = true }) { Text(text = "＋ 新建") }
         }
 
         if (categories.isEmpty()) {
@@ -104,7 +114,7 @@ fun CategoryManageScreen(
                 items(items = categories, key = { it.id }) { category ->
                     CategoryRow(
                         category = category,
-                        onRename = { renamingTarget = category },
+                        onRename = { renamingTarget.value = category },
                         onDelete = { onRequestDelete(category.id) },
                     )
                 }
@@ -112,29 +122,66 @@ fun CategoryManageScreen(
         }
     }
 
-    if (creating) {
+    CategoryNameDialogs(
+        creating = creating,
+        renamingTarget = renamingTarget,
+        onCreate = onCreate,
+        onRename = onRename,
+    )
+}
+
+/**
+ * 新建 / 改名对话框的**薄宿主**：本页对这两个开关的唯一读取点。
+ *
+ * 开关若在 [CategoryManageScreen] 体内读，每次开合都会把整页拖进重组（含 `LazyColumn` 的每一行）。
+ * 下沉后父层**只写不读**（**写不订阅**），开合仅重跑本层。
+ *
+ * 挂载位置不影响观感：`AlertDialog` 渲染为**独立窗口**，在组合树里的位置不决定层级。
+ */
+@Composable
+private fun CategoryNameDialogs(
+    creating: MutableState<Boolean>,
+    renamingTarget: MutableState<Category?>,
+    onCreate: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+) {
+    if (creating.value) {
         CategoryNameDialog(
             title = "新建分类",
             initial = "",
-            onConfirm = { name -> onCreate(name); creating = false },
-            onDismiss = { creating = false },
+            onConfirm = { name -> onCreate(name); creating.value = false },
+            onDismiss = { creating.value = false },
         )
     }
 
-    renamingTarget?.let { target ->
+    renamingTarget.value?.let { target ->
         CategoryNameDialog(
             title = "重命名分类",
             initial = target.name,
-            onConfirm = { name -> onRename(target.id, name); renamingTarget = null },
-            onDismiss = { renamingTarget = null },
+            onConfirm = { name -> onRename(target.id, name); renamingTarget.value = null },
+            onDismiss = { renamingTarget.value = null },
         )
     }
+}
 
-    // 二次确认（`实现约束.md` §4-2）：只有**自定义**分类能走到这里（内置项无删除入口）。
-    pendingDeleteId?.let { id ->
+/**
+ * 删除二次确认（`实现约束.md` §4-2：只有**自定义**分类能走到这里，内置项无删除入口）。
+ *
+ * 开关来自 ViewModel，由 [CategoryManageRoute] 以 `State<String?>` 下发、**在该层不调 `.value`**。
+ * 「只把它从 [CategoryManageScreen] 的参数表拿掉」并不够：该页带 `List<Category>` 参数且未标注
+ * `@Immutable`，**不可跳过**，失效仍会传到它 —— 读取必须一起离开上层才算真的缩小了作用域。
+ */
+@Composable
+private fun CategoryDeleteDialog(
+    pendingDeleteId: State<String?>,
+    categories: List<Category>,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    pendingDeleteId.value?.let { id ->
         val name = categories.firstOrNull { it.id == id }?.name.orEmpty()
         AlertDialog(
-            onDismissRequest = onDismissDelete,
+            onDismissRequest = onDismiss,
             title = { Text(text = "删除分类「$name」？") },
             text = {
                 Text(
@@ -142,10 +189,10 @@ fun CategoryManageScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = onConfirmDelete) { Text(text = "删除") }
+                TextButton(onClick = onConfirm) { Text(text = "删除") }
             },
             dismissButton = {
-                TextButton(onClick = onDismissDelete) { Text(text = "取消") }
+                TextButton(onClick = onDismiss) { Text(text = "取消") }
             },
         )
     }

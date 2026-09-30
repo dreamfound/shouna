@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dream.shouna.domain.model.LocationTreeRow
 import com.dream.shouna.ui.component.EmptyState
 import com.dream.shouna.ui.component.LocationPickerSheet
 import com.dream.shouna.ui.component.StatCard
@@ -87,7 +89,8 @@ fun StatsScreen(
     modifier: Modifier = Modifier,
 ) {
     // 待归位的目标物品 id：非空 = 「归位到…」弹层开着。
-    var putBackTarget by remember { mutableStateOf<String?>(null) }
+    // 本页**只写不读**（`putBackTarget.value = itemId` 不建立订阅），读取下沉到 [StatsPutBackPicker]。
+    val putBackTarget = remember { mutableStateOf<String?>(null) }
 
     // 明细态下拦截系统返回：先回卡片态。卡片态不拦截 → 交还系统 popBackStack。
     BackHandler(enabled = uiState.isDetail) { onBackToCards() }
@@ -117,7 +120,7 @@ fun StatsScreen(
                     if (uiState.detailKind == StatsDetailKind.OVERDUE) {
                         onConfirmOverdue(itemId)
                     } else {
-                        putBackTarget = itemId
+                        putBackTarget.value = itemId
                     }
                 },
                 onItemClick = onItemClick,
@@ -133,17 +136,40 @@ fun StatsScreen(
     }
 
     // FR-38：C-5 的「归位到…」—— 复用位置选择弹层（P1 §4 P1-03 ③）。
-    putBackTarget?.let { itemId ->
+    StatsPutBackPicker(
+        target = putBackTarget,
+        rows = uiState.locationRows,
+        onPutBack = onPutBack,
+        onDismiss = { putBackTarget.value = null },
+    )
+}
+
+/**
+ * 「归位到…」弹层的**薄宿主**：本页对该开关的唯一读取点。
+ *
+ * 开关若在 [StatsScreen] 体内读，每次开合都会重跑整页（含卡片态/明细态的 `LazyColumn`）。
+ * 下沉后父层**只写不读**，开合仅重跑本层与弹层子树。
+ *
+ * 挂载位置不影响观感：`LocationPickerSheet` 渲染为**独立 Dialog 窗口**，在组合树里的位置不决定层级。
+ */
+@Composable
+private fun StatsPutBackPicker(
+    target: MutableState<String?>,
+    rows: List<LocationTreeRow>,
+    onPutBack: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    target.value?.let { itemId ->
         LocationPickerSheet(
-            rows = uiState.locationRows,
+            rows = rows,
             recentLocations = emptyList(),
             selectedLocationId = null,
             onSelect = { locationId ->
                 onPutBack(itemId, locationId)
-                putBackTarget = null
+                onDismiss()
             },
             onCreateLocation = { /* 归位目标从既有位置里挑，不支持此处新建 */ },
-            onDismiss = { putBackTarget = null },
+            onDismiss = onDismiss,
             allowCreate = false,
         )
     }

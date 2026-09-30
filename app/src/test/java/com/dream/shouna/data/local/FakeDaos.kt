@@ -152,6 +152,16 @@ class FakeItemDao : ItemDao {
         )
 
     /**
+     * FR-16：只改 `photo_path` 一列 —— 与真实 SQL 一致，**不碰任何时间列**
+     * （照片既非位置变化也非状态变化，不刷 `last_modified_at`，更不是一次确认）。
+     */
+    override suspend fun updatePhoto(id: String, photoPath: String?): Int =
+        updateWhere(
+            predicate = { it.id == id },
+            transform = { it.copy(photoPath = photoPath) },
+        )
+
+    /**
      * `location.id → location.path`（ID 序列路径）。假的 `item` 表无法 join `location`，
      * 故由测试显式给出；[idsInSubtree] 用它复现真实 SQL 的区间语义。
      */

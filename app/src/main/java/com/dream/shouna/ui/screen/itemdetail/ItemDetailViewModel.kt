@@ -97,6 +97,16 @@ class ItemDetailViewModel @Inject constructor(
         mutate { itemId -> itemRepository.moveItem(itemId, locationId) }
     }
 
+    /**
+     * FR-16：移除照片（**只清库里的文件名**，图片文件由页面经 `PhotoStore` 删除）。
+     *
+     * 不写任何时间列：照片既不是「位置」也不是「状态」，按 §3.5 矩阵不改 `lastModifiedAt`，
+     * 更不是一次确认 —— 因此列表排序与超期判定都不受影响。
+     */
+    fun onRemovePhoto() {
+        mutate { itemId -> itemRepository.setPhoto(itemId, null) }
+    }
+
     /** 各动作共用的执行壳：串行化（`isBusy` 挡重复点击）→ 执行 → 重取详情刷新文案。 */
     private fun mutate(action: suspend (String) -> StoredItem?) {
         val itemId = loadedItemId ?: return
@@ -174,4 +184,7 @@ data class ItemDetailUiState(
 
     /** P1-04：折叠区展示的数量。 */
     val quantity: Int get() = item?.quantity ?: 1
+
+    /** FR-16：本条记录的照片文件名；null = 没拍照。 */
+    val photoName: String? get() = item?.photoPath
 }

@@ -76,8 +76,8 @@ fun RouteHandler(modifier: Modifier = Modifier) {
         composable<Home> {
             HomeRoute()
         }
-        composable<QuickAdd> {
-            QuickAddRoute()
+        composable<QuickAdd> { entry ->
+            QuickAddRoute(initialLocationId = entry.toRoute<QuickAdd>().locationId)
         }
         composable<Search> { entry ->
             SearchRoute(initialQuery = entry.toRoute<Search>().initialQuery)
@@ -112,10 +112,16 @@ fun NavHostController.goHome() {
     navigate(Home)
 }
 
-fun NavHostController.goQuickAdd() {
+/**
+ * 进 P-ADD。
+ *
+ * [initialLocationId] 非 null = 从 P-BROWSE 的「＋ 往这里记一件」进来（位置条预选**当前浏览的那一层**）；
+ * 省略 = 首页「＋ 记一件」（位置条回落到「最近使用」预选）。默认值让首页那一处调用点不必改。
+ */
+fun NavHostController.goQuickAdd(initialLocationId: String? = null) {
     // 调用关系：NavController.navigate(QuickAdd)
-    // 被 HomeScreen 的 onQuickAddClick 触发
-    navigate(QuickAdd)
+    // 被 HomeScreen 的 onQuickAddClick（不带位置）与 LocationBrowseScreen 的「＋ 往这里记一件」（带当前层）触发
+    navigate(QuickAdd(initialLocationId))
 }
 
 fun NavHostController.goSearch(initialQuery: String? = null) {

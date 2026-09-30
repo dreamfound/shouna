@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,21 +37,39 @@ import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
 import com.dream.shouna.ui.component.CategoryChips
 import com.dream.shouna.ui.component.LocationPickerSheet
+import com.dream.shouna.ui.component.PhotoInputRow
+import com.dream.shouna.ui.component.VoiceInputButton
+import com.dream.shouna.ui.component.VoiceInputDialog
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
 
 /**
  * 有状态包装层：唯一职责 = `hiltViewModel()` 取 ViewModel 后把 UiState 下传（ARCHITECTURE §2）。
+ *
+ * [initialLocationId] = 路由参数（P-BROWSE 的「＋ 往这里记一件」带过来的当前层；首页进来为 null）。
+ * 它**只在进页时用一次**，故交给 VM 的 [QuickAddViewModel.initialize]（内部自带防重入守卫）——
+ * 与 `ItemEditViewModel.load(itemId)` 同一手法：**参数是路由的，去向由 Route 决定，VM 不读路由**。
+ *
+ * 位置选择弹层**与本层平级**下发、不经过 [QuickAddScreen]（见 [QuickAddLocationPicker]）：
+ * 弹层开合是纯粹的本页 UI 态，不该让录入页 body 参与重组。
  */
 @Composable
-fun QuickAddRoute() {
+fun QuickAddRoute(initialLocationId: String?) {
     val viewModel: QuickAddViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val locationTree by viewModel.locationTree.collectAsStateWithLifecycle()
     val recentLocations by viewModel.recentLocations.collectAsStateWithLifecycle()
-    val isPickerVisible by viewModel.isLocationPickerVisible.collectAsStateWithLifecycle()
+    // **本层不调 `.value`**（故用 `val` 而非 `by`）：只持有 State 对象，读取落在 [QuickAddLocationPicker]。
+    val isPickerVisible = viewModel.isLocationPickerVisible.collectAsStateWithLifecycle()
+    // FR-18：同一条规矩 —— 语音弹窗的开关也只在这里**持有**，读取下沉到 [QuickAddVoiceDialog]。
+    val voiceField = viewModel.voiceField.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
+
+    // 初始位置只定一次：key = 路由参数（配置变更后重跑也会被 VM 的守卫挡掉，位置不会被重置）。
+    LaunchedEffect(initialLocationId) {
+        viewModel.initialize(initialLocationId)
+    }
 
     // FR-14：「查看已有」→ 跳到查重命中的那条记录（导航只在本层下发）。
     LaunchedEffect(Unit) {
@@ -60,18 +79,30 @@ fun QuickAddRoute() {
     QuickAddScreen(
         uiState = uiState,
         categories = categories,
-        locationTree = locationTree,
-        recentLocations = recentLocations,
-        isLocationPickerVisible = isPickerVisible,
         onNameChange = viewModel::onNameChange,
         onCategorySelected = viewModel::onCategorySelected,
         onNoteChange = viewModel::onNoteChange,
         onSaveAndContinue = viewModel::onSaveAndContinue,
         onViewSimilar = viewModel::onViewSimilar,
         onOpenLocationPicker = viewModel::onOpenLocationPicker,
-        onDismissLocationPicker = viewModel::onDismissLocationPicker,
-        onLocationSelected = viewModel::onLocationSelected,
+        onRequestVoice = viewModel::onRequestVoice,
+        onPhotoChanged = viewModel::onPhotoChanged,
+    )
+
+    QuickAddLocationPicker(
+        isVisible = isPickerVisible,
+        rows = locationTree,
+        recentLocations = recentLocations,
+        selectedLocationId = uiState.selectedLocationId,
+        onSelect = viewModel::onLocationSelected,
         onCreateLocation = viewModel::onCreateLocation,
+        onDismiss = viewModel::onDismissLocationPicker,
+    )
+
+    QuickAddVoiceDialog(
+        field = voiceField,
+        onResult = viewModel::onVoiceResult,
+        onDismiss = viewModel::onDismissVoice,
     )
 }
 
@@ -82,23 +113,21 @@ fun QuickAddRoute() {
  * —— 这是「所有物品必须有位置」在 UI 上的唯一表达（ARCHITECTURE-P0 §0）。
  *
  * 保存成功后**位置条不清空**（VM 保留位置），所以连续录入只需重复「输名称 → 保存」。
+ *
+ * 位置树与弹层开关**不在本页参数里** —— 弹层开合不该把整页拖进重组，见 [QuickAddLocationPicker]。
  */
 @Composable
 fun QuickAddScreen(
     uiState: QuickAddUiState,
     categories: List<Category>,
-    locationTree: List<LocationTreeRow>,
-    recentLocations: List<Location>,
-    isLocationPickerVisible: Boolean,
     onNameChange: (String) -> Unit,
     onCategorySelected: (String?) -> Unit,
     onNoteChange: (String) -> Unit,
     onSaveAndContinue: () -> Unit,
     onViewSimilar: () -> Unit,
     onOpenLocationPicker: () -> Unit,
-    onDismissLocationPicker: () -> Unit,
-    onLocationSelected: (String) -> Unit,
-    onCreateLocation: (String) -> Unit,
+    onRequestVoice: (VoiceField) -> Unit,
+    onPhotoChanged: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -123,8 +152,12 @@ fun QuickAddScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
+                // 已选时直接摊开**完整面包屑路径**（`家 › 储物间 › 纸箱-07`），不做「已选」这类占位词：
+                // 位置条是录入页唯一能确认「这件记到哪」的地方，层级省不得。路径与 id 由 VM 同一次
+                // 写入（见 `QuickAddViewModel.selectLocation`），两者不会只到一个。
+                // 不设 maxLines —— 深层路径宁可折一行，也不能把最具体的末级名字截掉。
                 text = if (hasLocation) {
-                    "位置：${uiState.selectedLocationPath.ifEmpty { "已选" }}"
+                    "位置：${uiState.selectedLocationPath}"
                 } else {
                     "选择位置（必填）"
                 },
@@ -149,6 +182,10 @@ fun QuickAddScreen(
             keyboardActions = KeyboardActions(
                 onDone = { keyboard?.hide() },
             ),
+            // FR-18：尾部语音按钮（点击开弹窗，长按才录音 —— 见 VoiceInputDialog）。
+            trailingIcon = {
+                VoiceInputButton(onClick = { onRequestVoice(VoiceField.NAME) })
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
@@ -185,6 +222,15 @@ fun QuickAddScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        // FR-16：照片（可选，不拦保存）。放在分类之后、备注之前 —— 它和备注同属「补充说明」，
+        // 但比备注更常用来「认东西」，所以不折叠。
+        PhotoInputRow(
+            photoName = uiState.photoName,
+            onPhotoChanged = onPhotoChanged,
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         TextButton(onClick = { noteExpanded = !noteExpanded }) {
             Text(text = if (noteExpanded) "收起备注" else "添加备注")
         }
@@ -194,6 +240,10 @@ fun QuickAddScreen(
                 onValueChange = onNoteChange,
                 label = { Text(text = "备注") },
                 minLines = 2,
+                // FR-18：备注也能用说的（长备注比长名称更常见）。
+                trailingIcon = {
+                    VoiceInputButton(onClick = { onRequestVoice(VoiceField.NOTE) })
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -231,15 +281,61 @@ fun QuickAddScreen(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
 
-    if (isLocationPickerVisible) {
+/**
+ * 位置选择弹层的**薄宿主**：录入页对 `isPickerVisible` 的唯一读取点。
+ *
+ * 【为什么单拆这一层】Compose 的失效粒度是「**读了该 state 的那个重启作用域**」。开关若在
+ * [QuickAddRoute] 或 [QuickAddScreen] 体内读取，翻一次就会连带重跑整个录入页 body
+ * （分类 chips、两个输入框、备注、计数）。**只把参数从 [QuickAddScreen] 拿掉是不够的** ——
+ * 各页 Screen 带 `List<…>` 参数且未标注 `@Immutable`，**不可跳过**，失效仍会传到它。
+ * 故 [QuickAddRoute] 只持有 `State`、不调 `.value`，把读取压到本层：翻开关只重跑本层与弹层子树。
+ *
+ * 挂载位置不影响观感：`LocationPickerSheet` 渲染为**独立 Dialog 窗口**，在组合树里的位置不决定层级。
+ */
+@Composable
+private fun QuickAddLocationPicker(
+    isVisible: State<Boolean>,
+    rows: List<LocationTreeRow>,
+    recentLocations: List<Location>,
+    selectedLocationId: String?,
+    onSelect: (String) -> Unit,
+    onCreateLocation: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (isVisible.value) {
         LocationPickerSheet(
-            rows = locationTree,
+            rows = rows,
             recentLocations = recentLocations,
-            selectedLocationId = uiState.selectedLocationId,
-            onSelect = onLocationSelected,
+            selectedLocationId = selectedLocationId,
+            onSelect = onSelect,
             onCreateLocation = onCreateLocation,
-            onDismiss = onDismissLocationPicker,
+            onDismiss = onDismiss,
         )
     }
+}
+
+/**
+ * 语音弹层的**薄宿主**：录入页对 `voiceField` 的唯一读取点（与 [QuickAddLocationPicker] 同一手法）。
+ *
+ * 【为什么读取必须压到这一层】Compose 的失效粒度是「读了该 state 的那个重启作用域」。
+ * 若在 [QuickAddRoute] 或 [QuickAddScreen] 体内读 `voiceField.value`，弹窗每次开合都会连带重跑
+ * 整个录入页 body（位置条、名称框、分类 chips、照片行、备注、计数）。下沉之后父层**只写不读**，
+ * 开合只重跑本层与弹窗子树。
+ *
+ * 【为什么弹窗本体不带字段参数】[VoiceInputDialog] 只负责「说出文字」，往哪写由调用方决定 ——
+ * 于是它不需要知道本页有几个输入框，字段选择就落在下面这一行 `onResult(current, text)` 里。
+ */
+@Composable
+private fun QuickAddVoiceDialog(
+    field: State<VoiceField?>,
+    onResult: (VoiceField, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val current = field.value ?: return
+    VoiceInputDialog(
+        onResult = { text -> onResult(current, text) },
+        onDismiss = onDismiss,
+    )
 }

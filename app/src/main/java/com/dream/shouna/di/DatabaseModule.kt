@@ -25,9 +25,9 @@ import javax.inject.Singleton
  * `addCallback(SeedCallback())` 只在**数据库首次创建**时触发（`onCreate`），
  * 已存在的库不会重复写入种子。
  *
- * `addMigrations(Migrations.MIGRATION_1_2)` 是 P1-01 新增的迁移挂载点：存量库（`version = 1`）
- * 升级时加 `location.path` 并回填。**不调用** `fallbackToDestructiveMigration()` ——
- * 那会让升级用户数据全丢（P1 §8.1-1）。
+ * `addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3)` 是迁移挂载点：
+ * 存量库升级时逐级执行（`v1` 用户会连跑两条，`v2` 用户只跑 `2 → 3`）。
+ * **不调用** `fallbackToDestructiveMigration()` —— 那会让升级用户数据全丢（P1 §8.1-1）。
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -42,7 +42,7 @@ object DatabaseModule {
             name = ShounaDatabase.NAME,
         )
             .addCallback(SeedCallback())
-            .addMigrations(Migrations.MIGRATION_1_2)
+            .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3)
             .build()
 
     @Provides
