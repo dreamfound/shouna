@@ -44,7 +44,7 @@ class ItemRepositoryImplTest {
         ItemRepositoryImpl(
             itemDao = itemDao,
             locationDao = locationDao,
-            categoryRepository = CategoryRepositoryImpl(categoryDao),
+            categoryRepository = CategoryRepositoryImpl(categoryDao, UuidIdGenerator()),
             recentSearchDao = recentDao,
             idGenerator = UuidIdGenerator(),
             timeUtil = timeUtil,
@@ -112,7 +112,7 @@ class ItemRepositoryImplTest {
     }
 
     @Test
-    fun createItemQuick_writesCreatedAtAndLastModifiedAt_only() = runTest {
+    fun createItemQuick_writesAllThreeTimestampsFromOneNow() = runTest {
         val before = timeUtil.nowMillis()
         val item = repository.createItemQuick(
             name = "电风扇",
@@ -125,7 +125,21 @@ class ItemRepositoryImplTest {
         assertThat(item.createdAt).isEqualTo(item.lastModifiedAt)
         assertThat(item.createdAt).isAtLeast(before)
         assertThat(item.createdAt).isAtMost(after)
-        assertThat(item.lastConfirmedAt).isNull()
+        // 2026-09-30 口径：录入即一次确认 → 三个时间列同值（原为 lastConfirmedAt 保持 null）。
+        assertThat(item.lastConfirmedAt).isEqualTo(item.createdAt)
+    }
+
+    @Test
+    fun createItemQuick_isNotOverdueRightAfterCreation() = runTest {
+        repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+
+        // 反证「刚存进去就带 ⚠ 并进 C-4 清单」这个症状：新物品不在超期清单里。
+        assertThat(repository.observeOverdueItems(thresholdMonths = 6).first()).isEmpty()
     }
 
     @Test
@@ -136,11 +150,13 @@ class ItemRepositoryImplTest {
             note = null,
             locationId = BEDROOM_ID,
         )
-        assertThat(created.lastConfirmedAt).isNull()
+        assertThat(created.lastConfirmedAt).isEqualTo(created.createdAt)
 
         val confirmed = requireNotNull(repository.confirmItem(created.id))
 
         assertThat(confirmed.lastConfirmedAt).isNotNull()
+        // 创建时已写入确认时间 → 本次「还在」必须把它推进（同一毫秒内允许相等）。
+        assertThat(confirmed.lastConfirmedAt!!).isAtLeast(created.lastConfirmedAt!!)
         // 时间戳矩阵：只动 lastConfirmedAt。
         assertThat(confirmed.lastModifiedAt).isEqualTo(created.lastModifiedAt)
         assertThat(confirmed.createdAt).isEqualTo(created.createdAt)
@@ -407,6 +423,257 @@ class ItemRepositoryImplTest {
             .containsExactly("新词", "中词", "旧词").inOrder()
     }
 
+    // ---- P1-04（别名 / 数量 / 补丁式写入）------------------------------------------
+
+    @Test
+    fun updateFields_writesOnlyGivenFieldsAndKeepsEveryTimestamp() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = "备用",
+            locationId = BEDROOM_ID,
+        )
+        val before = itemDao.findById(created.id)!!
+
+        val updated = repository.updateFields(
+            itemId = created.id,
+            patch = ItemFieldPatch(
+                categoryId = "builtin-category-appliance",
+                aliases = listOf("台扇"),
+                quantity = 3,
+            ),
+        )
+
+        assertThat(updated?.categoryId).isEqualTo("builtin-category-appliance")
+        assertThat(updated?.quantity).isEqualTo(3)
+        assertThat(updated?.aliases).containsExactly("台扇")
+        // 未给出的字段原样（补丁语义：没给 = 不动）。
+        assertThat(updated?.name).isEqualTo("电风扇")
+        assertThat(updated?.note).isEqualTo("备用")
+        assertThat(updated?.locationId).isEqualTo(BEDROOM_ID)
+        assertThat(updated?.status).isEqualTo(ItemStatus.IN_STORAGE)
+        // P1 §3.4-10 / §3.5：改分类 / 别名 / 数量**不刷新**任何时间戳。
+        val after = itemDao.findById(created.id)!!
+        assertThat(after.createdAt).isEqualTo(before.createdAt)
+        assertThat(after.lastModifiedAt).isEqualTo(before.lastModifiedAt)
+        assertThat(after.lastConfirmedAt).isEqualTo(before.lastConfirmedAt)
+    }
+
+    @Test
+    fun updateFields_clearCategoryFallsBackToUncategorized() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = "builtin-category-appliance",
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+
+        // `categoryId = null` 已是「不改」的含义 → 置空必须走 `clearCategory`。
+        val cleared = repository.updateFields(created.id, ItemFieldPatch(clearCategory = true))
+
+        assertThat(cleared?.categoryId).isNull()
+    }
+
+    @Test
+    fun updateFields_blankNoteClearsIt() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = "备用",
+            locationId = BEDROOM_ID,
+        )
+
+        assertThat(repository.updateFields(created.id, ItemFieldPatch(note = "   "))?.note).isNull()
+        assertThat(itemDao.findById(created.id)?.note).isNull()
+    }
+
+    @Test
+    fun updateFields_rejectsNonPositiveQuantityAndKeepsStoredValue() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+
+        assertThat(repository.updateFields(created.id, ItemFieldPatch(quantity = 0))).isNull()
+        assertThat(itemDao.findById(created.id)?.quantity).isEqualTo(1)
+    }
+
+    @Test
+    fun updateFields_emptyPatchIsNoOpAndStillReturnsCurrentRow() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+
+        val unchanged = repository.updateFields(created.id, ItemFieldPatch())
+
+        assertThat(unchanged).isEqualTo(created)
+        assertThat(repository.updateFields("no-such-id", ItemFieldPatch(quantity = 2))).isNull()
+    }
+
+    @Test
+    fun updateFields_aliasChangeRecomputesPinyinToCoverBothNameAndAlias() = runTest {
+        val created = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BEDROOM_ID,
+        )
+        assertThat(itemDao.findById(created.id)?.pinyinFull).isEqualTo("dianfengshan")
+
+        repository.updateFields(created.id, ItemFieldPatch(aliases = listOf("台扇")))
+
+        // 别名与名称同档参与检索 → 拼音键是**两者合并**，不是替换。
+        val withAlias = itemDao.findById(created.id)!!.pinyinFull
+        assertThat(withAlias).contains("dianfengshan")
+        assertThat(withAlias).contains("taishan")
+
+        // 删掉别名 → 拼音键回落为名称单键。
+        repository.updateFields(created.id, ItemFieldPatch(aliases = emptyList()))
+        assertThat(itemDao.findById(created.id)?.pinyinFull).isEqualTo("dianfengshan")
+    }
+
+    @Test
+    fun observeSearchDocs_carriesAliasesAndLocationId() = runTest {
+        locationDao.insert(box())
+        val item = repository.createItemQuick(
+            name = "电风扇",
+            categoryId = null,
+            note = null,
+            locationId = BOX_ID,
+        )
+        repository.updateFields(item.id, ItemFieldPatch(aliases = listOf("台扇", "风扇")))
+
+        val doc = repository.observeSearchDocs().first().single()
+
+        assertThat(doc.aliases).containsExactly("台扇", "风扇").inOrder()
+        assertThat(doc.normalizedAliases).containsExactly("台扇", "风扇").inOrder()
+        // P1-06（FR-22）：位置筛选靠 id 落到位置树的前缀关系，不靠会随改名而变的名称路径。
+        assertThat(doc.locationId).isEqualTo(BOX_ID)
+    }
+
+    // ---- P1-02 ⑥（FR-28 按位置批量确认）-------------------------------------------
+
+    @Test
+    fun confirmByLocation_confirmsWholeSubtreeSkipsGoneAndLeavesOtherBranches() = runTest {
+        locationDao.insert(box())
+        locationDao.insert(livingRoom())
+        wireLocationPaths()
+        val inBedroom = repository.createItemQuick("电风扇", null, null, BEDROOM_ID)
+        val inBox = repository.createItemQuick("说明书", null, null, BOX_ID)
+        val elsewhere = repository.createItemQuick("台灯", null, null, LIVING_ROOM_ID)
+        val goneInBox = repository.createItemQuick("旧电池", null, null, BOX_ID)
+        repository.setStatus(goneInBox.id, ItemStatus.GONE)
+        val modifiedBefore = itemDao.findById(inBox.id)!!.lastModifiedAt
+        // 录入即已确认（本次口径变更）→ 先存四条的现值，再验证批量确认只推进子树内的两条活跃物品。
+        // 若只断言 `isNotNull()` 会变成恒真的空断言，故这里一律与「确认前」的值比对。
+        val confirmedBefore = itemDao.snapshot().associate { it.id to it.lastConfirmedAt }
+
+        val affected = repository.confirmByLocation(BEDROOM_ID)
+
+        // 含子层：卧室 + 纸箱-07 各 1 件活跃物品（`gone` 不计）。
+        assertThat(affected).isEqualTo(2)
+        assertThat(itemDao.findById(inBedroom.id)?.lastConfirmedAt)
+            .isAtLeast(confirmedBefore.getValue(inBedroom.id)!!)
+        assertThat(itemDao.findById(inBox.id)?.lastConfirmedAt)
+            .isAtLeast(confirmedBefore.getValue(inBox.id)!!)
+        // 子树之外与 `gone` 都不受影响。
+        assertThat(itemDao.findById(elsewhere.id)?.lastConfirmedAt)
+            .isEqualTo(confirmedBefore.getValue(elsewhere.id))
+        assertThat(itemDao.findById(goneInBox.id)?.lastConfirmedAt)
+            .isEqualTo(confirmedBefore.getValue(goneInBox.id))
+        // 批量确认只写 `last_confirmed_at`（P1 §3.5 矩阵末行）。
+        assertThat(itemDao.findById(inBox.id)?.lastModifiedAt).isEqualTo(modifiedBefore)
+    }
+
+    @Test
+    fun confirmByLocation_returnsZeroWhenPathIsBlank() = runTest {
+        // 脏数据（`path` 未回填）下**必须为 0**：空前缀的区间查询会命中全表。
+        locationDao.insert(livingRoom().copy(id = "dirty", parentId = null, path = ""))
+        repository.createItemQuick("台灯", null, null, "dirty")
+
+        assertThat(repository.confirmByLocation("dirty")).isEqualTo(0)
+        assertThat(repository.confirmByLocation("no-such-id")).isEqualTo(0)
+    }
+
+    // ---- P1-06 ②（FR-14 重名查重）-------------------------------------------------
+
+    @Test
+    fun findSimilar_matchesExactNormalizedName() = runTest {
+        val created = repository.createItemQuick("电风扇", null, null, BEDROOM_ID)
+
+        assertThat(repository.findSimilar("  电风扇 ").map { it.id }).containsExactly(created.id)
+    }
+
+    @Test
+    fun findSimilar_matchesSubstringWithinLengthDeltaOnly() = runTest {
+        val created = repository.createItemQuick("电风扇", null, null, BEDROOM_ID)
+        // 互为子串且长度差 1 ≤ 2 → 高度相似。
+        assertThat(repository.findSimilar("风扇").map { it.id }).containsExactly(created.id)
+
+        repository.createItemQuick("电风扇三档调速款", null, null, BEDROOM_ID)
+        // 长度为 3 的查询对 8 字条目：虽互为子串，长度差 5 > 2 → 不算相似（噪声全靠这条挡）。
+        assertThat(repository.findSimilar("电风扇").map { it.id }).containsExactly(created.id)
+    }
+
+    @Test
+    fun findSimilar_ignoresGoneItemsAndBlankInput() = runTest {
+        val created = repository.createItemQuick("电风扇", null, null, BEDROOM_ID)
+        repository.setStatus(created.id, ItemStatus.GONE)
+
+        assertThat(repository.findSimilar("电风扇")).isEmpty()
+        assertThat(repository.findSimilar("   ")).isEmpty()
+    }
+
+    // ---- P1-03 ③ / P1-04 ⑥（归位到… / 移动到…）-------------------------------------
+
+    @Test
+    fun putBack_movesToTargetAndLeavesPendingState_refreshingLastModifiedOnly() = runTest {
+        locationDao.insert(livingRoom())
+        val item = repository.createItemQuick("电风扇", null, null, BEDROOM_ID)
+        repository.setStatus(item.id, ItemStatus.TO_BE_PUT_BACK)
+        val confirmedBefore = itemDao.findById(item.id)!!.lastConfirmedAt
+
+        val putBack = repository.putBack(item.id, LIVING_ROOM_ID)
+
+        // FR-38：一次操作同时完成「换位置」与「离开待归位」。
+        assertThat(putBack?.locationId).isEqualTo(LIVING_ROOM_ID)
+        assertThat(putBack?.status).isEqualTo(ItemStatus.IN_STORAGE)
+        // 状态变化属「变动」→ 刷新 last_modified_at（P1 §3.5 矩阵）；归位**不是**一次确认。
+        assertThat(itemDao.findById(item.id)!!.lastModifiedAt).isAtLeast(confirmedBefore ?: 0L)
+        assertThat(itemDao.findById(item.id)?.lastConfirmedAt).isEqualTo(confirmedBefore)
+    }
+
+    @Test
+    fun putBack_returnsNullWhenItemMissing() = runTest {
+        assertThat(repository.putBack("no-such-id", LIVING_ROOM_ID)).isNull()
+    }
+
+    @Test
+    fun moveItem_changesLocationOnly_andDoesNotCountAsConfirmation() = runTest {
+        locationDao.insert(livingRoom())
+        val item = repository.createItemQuick("电风扇", null, null, BEDROOM_ID)
+        val modifiedBefore = item.lastModifiedAt
+        val confirmedBefore = itemDao.findById(item.id)!!.lastConfirmedAt
+
+        val moved = repository.moveItem(item.id, LIVING_ROOM_ID)
+
+        assertThat(moved?.locationId).isEqualTo(LIVING_ROOM_ID)
+        // 移动不改 status、不写确认时间；位置变化本身属「变动」→ 刷新 last_modified_at。
+        assertThat(moved?.status).isEqualTo(ItemStatus.IN_STORAGE)
+        assertThat(itemDao.findById(item.id)?.lastConfirmedAt).isEqualTo(confirmedBefore)
+        assertThat(itemDao.findById(item.id)!!.lastModifiedAt).isAtLeast(modifiedBefore)
+    }
+
+    @Test
+    fun moveItem_returnsNullWhenItemMissing() = runTest {
+        assertThat(repository.moveItem("no-such-id", LIVING_ROOM_ID)).isNull()
+    }
+
     private fun recentQuery(query: String, at: Long): RecentSearchEntity = RecentSearchEntity(
         query = query,
         normalizedQuery = TextNormalizer.normalize(query),
@@ -451,8 +718,33 @@ class ItemRepositoryImplTest {
         createdAt = 0L,
     )
 
+    /** 根级位置「客厅」：用于验证**子树之外**的分支不被批量确认波及。 */
+    private fun livingRoom(): LocationEntity = LocationEntity(
+        id = LIVING_ROOM_ID,
+        name = "客厅",
+        parentId = null,
+        path = "/$LIVING_ROOM_ID/",
+        isBuiltIn = false,
+        isTemporary = false,
+        note = null,
+        sortOrder = 2,
+        lastUsedAt = null,
+        createdAt = 0L,
+    )
+
+    /**
+     * 把位置 id → ID 序列路径灌进 `FakeItemDao`。
+     *
+     * 假的 `item` 表没有 `location` 表可 join，而按位置批量确认靠的正是位置路径的区间匹配
+     * —— 不喂这张映射，`confirmActiveInSubtree` 就无从判定范围。
+     */
+    private fun wireLocationPaths() {
+        itemDao.locationPaths = locationDao.snapshot().associate { it.id to it.path }
+    }
+
     private companion object {
         const val BEDROOM_ID = "location-bedroom"
         const val BOX_ID = "location-box-07"
+        const val LIVING_ROOM_ID = "location-living-room"
     }
 }

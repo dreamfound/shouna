@@ -10,9 +10,12 @@ import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -54,6 +57,11 @@ class QuickAddViewModel @Inject constructor(
     private val picker = MutableStateFlow(false)
     val isLocationPickerVisible: StateFlow<Boolean> = picker.asStateFlow()
 
+    /** FR-14：「查看已有」要跳转的 itemId —— Route 收到后导航（本 VM 不持有 NavController）。 */
+    private val viewSimilar = MutableSharedFlow<String>()
+
+    val viewSimilarEvents: SharedFlow<String> = viewSimilar.asSharedFlow()
+
     init {
         // FR-11：进入录入页即预选最近使用的位置。首次安装返回空 → 保持未选（必须手动选择）。
         viewModelScope.launch {
@@ -76,7 +84,9 @@ class QuickAddViewModel @Inject constructor(
     }
 
     fun onNameChange(value: String) {
-        state.update { it.copy(inputName = value) }
+        // 一动手输入，上一件刚保存时的 FR-14 提示就失效了（它说的是**刚存进去的那件**，
+        // 不是正在输入的名字）→ 一并清掉，避免用户对着过期的「已有 2 件相似」发愣。
+        state.update { it.copy(inputName = value, similarCount = 0, similarItemId = null) }
         recomputeCanSave()
     }
 
@@ -131,11 +141,20 @@ class QuickAddViewModel @Inject constructor(
         val current = state.value
         if (!current.canSave) return
         val locationId = current.selectedLocationId ?: return
+        val name = current.inputName.trim()
 
         viewModelScope.launch {
+            // FR-14：**先查重、再落库**。顺序不能反 —— 落库之后再查，刚写进去的这一条会被自己
+            // 命中（归一化名完全相同），提示变成恒真，这个功能就废了。
+            val similar = try {
+                itemRepository.findSimilar(name)
+            } catch (_: Throwable) {
+                emptyList()
+            }
+
             try {
                 itemRepository.createItemQuick(
-                    name = current.inputName.trim(),
+                    name = name,
                     categoryId = current.selectedCategoryId,
                     // 空白备注归一为 null（StoredItem.note 可空）。
                     note = current.note?.trim()?.ifBlank { null },
@@ -146,12 +165,16 @@ class QuickAddViewModel @Inject constructor(
                 return@launch
             }
             // 清空输入（**保留位置**）；计数器 +1；焦点由 QuickAddScreen 依 sessionCount 变化重新请求。
+            // FR-14 的提示**非阻塞**：只带出条数与跳转目标，保存已经成功，不拦任何人（P1 §8.1-12）。
             state.update {
                 it.copy(
                     inputName = "",
                     selectedCategoryId = null,
                     note = null,
                     sessionCount = it.sessionCount + 1,
+                    similarCount = similar.size,
+                    // 取最近创建的一条（查询按 created_at 倒序）作为「查看」的落点。
+                    similarItemId = similar.firstOrNull()?.id,
                 )
             }
             recomputeCanSave()
@@ -167,7 +190,8 @@ class QuickAddViewModel @Inject constructor(
      * 本页按「**提示轻量、不引入新名词、无门控**」处置（P1 §8.1-12）——保存永远可继续。
      */
     fun onViewSimilar() {
-        TODO("P1-06 ②: 把 similarItemId 交给 Route 跳详情页")
+        val itemId = state.value.similarItemId ?: return
+        viewModelScope.launch { viewSimilar.emit(itemId) }
     }
 
     /** canSave 口径（位置必填）：**名称非空 ∧ 位置已选**。 */
@@ -198,7 +222,7 @@ data class QuickAddUiState(
      *
      * **非阻塞**：只驱动一行提示 + 一个「查看」入口，不阻断保存、不弹对话框
      * （守 `实现约束.md` §4-1 零弹窗与 §4-4 连续录入期间不弹位置/分类对话框）。
-     * 骨架期恒 0：判定与文案在 P1-06 实现期接入 `onSaveAndContinue` 的保存成功分支。
+     * 在**落库前**算好（落库后再查会把刚写的这条自己查出来），随后随保存成功一起进 UiState。
      */
     val similarCount: Int = 0,
     /** FR-14：「查看」要跳转到的已有物品 id。null = 无提示。 */

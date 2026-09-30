@@ -1,10 +1,12 @@
 package com.dream.shouna.data.local
 
 import com.dream.shouna.data.local.dao.CategoryDao
+import com.dream.shouna.data.local.dao.ConfigDao
 import com.dream.shouna.data.local.dao.ItemDao
 import com.dream.shouna.data.local.dao.LocationDao
 import com.dream.shouna.data.local.dao.LocationItemCount
 import com.dream.shouna.data.local.dao.RecentSearchDao
+import com.dream.shouna.data.local.entity.AppConfigEntity
 import com.dream.shouna.data.local.entity.CategoryEntity
 import com.dream.shouna.data.local.entity.ItemEntity
 import com.dream.shouna.data.local.entity.LocationEntity
@@ -78,6 +80,96 @@ class FakeItemDao : ItemDao {
 
     override suspend fun count(): Int = rows.value.size
 
+    // --- P1-02 / 03 / 04（FR-28、补丁式更新、统计清单）---------------------------------
+
+    override suspend fun updateFields(
+        id: String,
+        applyCategory: Boolean,
+        categoryId: String?,
+        applyAliases: Boolean,
+        aliasBlob: String,
+        applyQuantity: Boolean,
+        quantity: Int,
+        applyNote: Boolean,
+        note: String?,
+        pinyinFull: String,
+        pinyinInitial: String,
+    ): Int = updateWhere(
+        predicate = { it.id == id },
+        transform = { row ->
+            row.copy(
+                categoryId = if (applyCategory) categoryId else row.categoryId,
+                aliasBlob = if (applyAliases) aliasBlob else row.aliasBlob,
+                quantity = if (applyQuantity) quantity else row.quantity,
+                note = if (applyNote) note else row.note,
+                pinyinFull = if (applyAliases) pinyinFull else row.pinyinFull,
+                pinyinInitial = if (applyAliases) pinyinInitial else row.pinyinInitial,
+            )
+        },
+    )
+
+    override suspend fun confirmActiveInSubtree(prefix: String, confirmedAt: Long): Int =
+        updateWhere(
+            predicate = { row ->
+                row.status != ItemStatus.GONE && row.locationId in idsInSubtree(prefix)
+            },
+            transform = { it.copy(lastConfirmedAt = confirmedAt) },
+        )
+
+    override fun observeOverdue(thresholdAt: Long): Flow<List<ItemEntity>> =
+        rows.map { list ->
+            list.filter { it.status != ItemStatus.GONE }
+                .filter { it.lastConfirmedAt == null || it.lastConfirmedAt < thresholdAt }
+                .sortedBy { it.lastConfirmedAt }
+        }
+
+    override fun observeToBePutBack(): Flow<List<ItemEntity>> =
+        rows.map { list ->
+            list.filter { row ->
+                row.status == ItemStatus.TO_BE_PUT_BACK ||
+                    (row.status != ItemStatus.GONE && row.locationId in temporaryLocationIds)
+            }.sortedByDescending { it.lastModifiedAt }
+        }
+
+    override fun observeActiveCount(): Flow<Int> =
+        rows.map { list -> list.count { it.status != ItemStatus.GONE } }
+
+    override suspend fun putBack(
+        id: String,
+        locationId: String,
+        status: ItemStatus,
+        modifiedAt: Long,
+    ): Int = updateWhere(
+        predicate = { it.id == id },
+        // 与真实 SQL 同形：位置 + 状态 + last_modified_at 一处写完（不含 last_confirmed_at）。
+        transform = { it.copy(locationId = locationId, status = status, lastModifiedAt = modifiedAt) },
+    )
+
+    override suspend fun moveItem(id: String, locationId: String, modifiedAt: Long): Int =
+        updateWhere(
+            predicate = { it.id == id },
+            transform = { it.copy(locationId = locationId, lastModifiedAt = modifiedAt) },
+        )
+
+    /**
+     * `location.id → location.path`（ID 序列路径）。假的 `item` 表无法 join `location`，
+     * 故由测试显式给出；[idsInSubtree] 用它复现真实 SQL 的区间语义。
+     */
+    var locationPaths: Map<String, String> = emptyMap()
+
+    /** 用户标记过的临时位置 id（`location.is_temporary = 1`）。 */
+    var temporaryLocationIds: Set<String> = emptySet()
+
+    /**
+     * 子树（**含自身**）的 id 集 —— 等价于 SQL 的
+     * `path >= :prefix AND path < :prefix || char(0xFFFF)`。
+     *
+     * 用 `startsWith` 复现是**精确等价**而非近似：ID 序列路径带收尾 `/`，任何以 `prefix` 开头的
+     * 路径都落在区间内，反之（如 `/ab/` 之于前缀 `/a/`）在首处不同字符上就已大于上界。
+     */
+    private fun idsInSubtree(prefix: String): Set<String> =
+        locationPaths.filterValues { it.startsWith(prefix) }.keys
+
     private fun updateWhere(
         predicate: (ItemEntity) -> Boolean,
         transform: (ItemEntity) -> ItemEntity = { it },
@@ -110,6 +202,41 @@ class FakeCategoryDao(initial: List<CategoryEntity> = emptyList()) : CategoryDao
     }
 
     override suspend fun count(): Int = rows.value.size
+
+    // --- P1-05（FR-44）--------------------------------------------------------------
+
+    override suspend fun insert(item: CategoryEntity) {
+        rows.value = rows.value + item
+    }
+
+    override suspend fun maxSortOrder(): Int = rows.value.maxOfOrNull { it.sortOrder } ?: 0
+
+    override suspend fun rename(id: String, name: String): Int =
+        updateWhere(predicate = { it.id == id }, transform = { it.copy(name = name) })
+
+    /** 内置分类被挡下（受影响行数 0）—— 与真实 SQL 的 `AND is_built_in = 0` 同语义。 */
+    override suspend fun deleteCustom(id: String): Int {
+        val target = rows.value.firstOrNull { it.id == id }
+        if (target == null || target.isBuiltIn) return 0
+        rows.value = rows.value.filterNot { it.id == id }
+        return 1
+    }
+
+    private fun updateWhere(
+        predicate: (CategoryEntity) -> Boolean,
+        transform: (CategoryEntity) -> CategoryEntity,
+    ): Int {
+        var affected = 0
+        rows.value = rows.value.map { row ->
+            if (predicate(row)) {
+                affected += 1
+                transform(row)
+            } else {
+                row
+            }
+        }
+        return affected
+    }
 }
 
 /** `location` 表替身（P0-02）。行为对齐 Room：`parent_id IS NULL` 的根级查询、受影响行数。 */
@@ -160,6 +287,30 @@ class FakeLocationDao(initial: List<LocationEntity> = emptyList()) : LocationDao
         return before - rows.value.size
     }
 
+    // --- P1-01 / P1-02（FR-04 / 06 / 21）---------------------------------------------
+
+    override suspend fun updateParentAndPath(id: String, parentId: String?, path: String): Int =
+        updateWhere(
+            predicate = { it.id == id },
+            transform = { it.copy(parentId = parentId, path = path) },
+        )
+
+    override suspend fun updatePath(id: String, path: String): Int =
+        updateWhere(predicate = { it.id == id }, transform = { it.copy(path = path) })
+
+    /** 区间语义（含自身）—— 见 `FakeItemDao.idsInSubtree` 的等价性说明。 */
+    override suspend fun subtreeOf(prefix: String): List<LocationEntity> =
+        rows.value.filter { it.path.startsWith(prefix) }
+
+    override suspend fun descendantsOf(prefix: String, excludeId: String): List<LocationEntity> =
+        rows.value.filter { it.id != excludeId && it.path.startsWith(prefix) }
+
+    override suspend fun setTemporary(id: String, flag: Boolean): Int =
+        updateWhere(predicate = { it.id == id }, transform = { it.copy(isTemporary = flag) })
+
+    override fun observeUsableCount(): Flow<Int> =
+        rows.map { list -> list.count { !it.isBuiltIn } }
+
     private fun updateWhere(
         predicate: (LocationEntity) -> Boolean,
         transform: (LocationEntity) -> LocationEntity = { it },
@@ -174,6 +325,28 @@ class FakeLocationDao(initial: List<LocationEntity> = emptyList()) : LocationDao
             }
         }
         return affected
+    }
+}
+
+/**
+ * `app_config` 表替身（P1-05 / P1-06）。行为对齐 Room 的 `INSERT OR REPLACE`：
+ * 同 key 覆盖。默认空表 —— 由「读回落默认值」的用例覆盖。
+ *
+ * P1-06 起内部改用 `MutableStateFlow` 承载：`observe` 要能**随写入推送**，
+ * 才能覆盖「设置页改阈值 → 统计页 C-4 清单即时变化」这条联动（FR-47）。
+ */
+class FakeConfigDao(initial: Map<String, String> = emptyMap()) : ConfigDao {
+
+    private val entries = MutableStateFlow(initial)
+
+    fun snapshot(): Map<String, String> = entries.value
+
+    override suspend fun get(key: String): String? = entries.value[key]
+
+    override fun observe(key: String): Flow<String?> = entries.map { it[key] }
+
+    override suspend fun put(item: AppConfigEntity) {
+        entries.value = entries.value + (item.key to item.value)
     }
 }
 

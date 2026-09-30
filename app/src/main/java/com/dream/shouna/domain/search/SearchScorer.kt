@@ -59,8 +59,12 @@ object SearchScorer {
     fun matchType(doc: SearchDoc, normalizedQuery: String): MatchType? {
         if (normalizedQuery.isEmpty()) return null
 
-        // ① 名称子串
+        // ① 名称子串。**别名与名称同档**（P1 §8.1-3 / P1-04）：别名存在的意义就是「换个说法
+        //    也能搜到同一个东西」，单开一个低档会让它被同名的普通命中挤下去。
         if (TextNormalizer.containsNormalized(doc.normalizedName, normalizedQuery)) return MatchType.NAME
+        if (doc.normalizedAliases.any { TextNormalizer.containsNormalized(it, normalizedQuery) }) {
+            return MatchType.NAME
+        }
 
         // ② FR-20 拼音：全拼或首字母
         if (doc.pinyinFull.isNotEmpty() &&

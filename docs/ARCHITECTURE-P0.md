@@ -104,7 +104,7 @@
 | `quantity` | INTEGER | 恒 1（F2 才接） |
 | `note` | TEXT? | 可选 |
 | `created_at` / `last_modified_at` | INTEGER | epoch millis |
-| `last_confirmed_at` | INTEGER? | 可空 |
+| `last_confirmed_at` | INTEGER? | 可空；**新建即写 = `created_at` 同值**（见 §3.5 的 2026-09-30 修订）。列保持可空只为承接迁移前建的老数据 |
 
 索引：`location_id`、`category_id`、`normalized_name`。
 
@@ -136,7 +136,7 @@
 
 | 操作 | `last_modified_at` | `last_confirmed_at` |
 |---|---|---|
-| 新建物品 | = now | 保持 NULL |
+| 新建物品 | = now | **= now**（与 `created_at` 同一次 now） |
 | 点「还在」 | 不动 | = now |
 | 改名 / 改分类 / 改备注 | 不动 | 不动 |
 | **标记「不在了」** | **= now** | 不动 |
@@ -144,6 +144,11 @@
 | **移动到其它位置** | **= now** | 不动 |
 
 超期判定（FR-27，详情页与列表行共用一套）：`last_confirmed_at IS NULL OR last_confirmed_at < now - threshold_months 个月`。
+
+> **2026-09-30 修订**：「新建物品」行由「`last_confirmed_at` 保持 NULL」改为「= now」。录入本身就是一次
+> 「我知道它在这儿」的确认；留 NULL 会让刚存进去的物品立刻被判超期（`last_confirmed_at IS NULL` 恒真），
+> 既在列表带 ⚠，又直接进 C-4「超期未确认」清单 —— 把「记得住」变成噪声。
+> **不留开关、不保留旧口径**；`last_confirmed_at` 列仍可空，以承接迁移前建的老数据（它们继续按「从未确认」参与判定）。
 
 ## 4. 任务分解
 

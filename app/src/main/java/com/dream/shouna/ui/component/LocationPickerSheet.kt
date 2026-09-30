@@ -32,13 +32,17 @@ import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
 
 /**
- * 位置选择弹层（ARCHITECTURE-P0 §8.1-9）：录入页底部弹层内嵌同一棵位置树 + **「＋ 新建位置」**。
+ * 位置选择弹层（ARCHITECTURE-P0 §8.1-9）：底部弹层内嵌同一棵位置树 + **可选的「＋ 新建位置」**。
  *
  * 为什么用弹层而不是独立页：少一条路由变体、少一个跨页结果回传通道（`savedStateHandle`）。
  * 树可能很深，弹层高度按 80% 屏高固定。
  *
- * 「必须手动选择位置」在此兑现：用户要么在树里点一个，要么用「＋ 新建位置」**输入**一个新位置。
+ * 「必须手动选择位置」在录入场景由此兑现：用户要么在树里点一个，要么用「＋ 新建位置」**输入**一个。
  * 默认全展开（用 `collapsedIds` 记录折叠项，空集 = 全展开），避免用户为了找一个深层位置反复点击。
+ *
+ * P1 起 [allowCreate] 可关：「归位到…」「移动到…」「迁移到…」这类**在既有位置里挑一个**的场景
+ * 不需要新建入口 —— 与其摆一个点了没反应的按钮，不如整块不出现（守 `实现约束.md` §3-4：
+ * 组件只接渲染参数，是否需要新建入口由调用方决定）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +53,8 @@ fun LocationPickerSheet(
     onSelect: (String) -> Unit,
     onCreateLocation: (String) -> Unit,
     onDismiss: () -> Unit,
+    /** 是否给出「＋ 新建位置」入口（默认给，录入页需要；挑目标的场景一般关掉）。 */
+    allowCreate: Boolean = true,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -86,49 +92,52 @@ fun LocationPickerSheet(
 
             HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
 
-            // 「或输入位置」：新建一个位置节点。
-            if (creating) {
-                Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = newLocationName,
-                        onValueChange = { newLocationName = it },
-                        label = { Text(text = "新位置名称") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Button(
-                        onClick = {
-                            val name = newLocationName.trim()
-                            if (name.isNotEmpty()) {
-                                onCreateLocation(name)
-                                newLocationName = ""
-                                creating = false
-                            }
-                        },
-                        enabled = newLocationName.isNotBlank(),
-                        modifier = Modifier.padding(start = 8.dp),
+            // 「或输入位置」：新建一个位置节点。调用方不需要新建时整块不出现
+            // （不给一个点了没反应的入口，与「内置分类不可删 → 直接不出现删除按钮」同一取向）。
+            if (allowCreate) {
+                if (creating) {
+                    Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                     ) {
-                        Text(text = "创建")
+                        OutlinedTextField(
+                            value = newLocationName,
+                            onValueChange = { newLocationName = it },
+                            label = { Text(text = "新位置名称") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Button(
+                            onClick = {
+                                val name = newLocationName.trim()
+                                if (name.isNotEmpty()) {
+                                    onCreateLocation(name)
+                                    newLocationName = ""
+                                    creating = false
+                                }
+                            },
+                            enabled = newLocationName.isNotBlank(),
+                            modifier = Modifier.padding(start = 8.dp),
+                        ) {
+                            Text(text = "创建")
+                        }
                     }
-                }
-                Text(
-                    text = "将建在「${selectedLocationId?.let { id -> rowById[id]?.pathText } ?: "根级"}」之下",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
-            } else {
-                TextButton(
-                    onClick = { creating = true },
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                ) {
-                    Text(text = "＋ 新建位置")
+                    Text(
+                        text = "将建在「${selectedLocationId?.let { id -> rowById[id]?.pathText } ?: "根级"}」之下",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                    TextButton(
+                        onClick = { creating = true },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) {
+                        Text(text = "＋ 新建位置")
+                    }
                 }
             }
 

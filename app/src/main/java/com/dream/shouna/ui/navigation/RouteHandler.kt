@@ -1,5 +1,8 @@
 package com.dream.shouna.ui.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.ime
@@ -32,6 +35,19 @@ val LocalNavController = staticCompositionLocalOf<NavHostController> {
 }
 
 /**
+ * 页面切换过渡时长（毫秒）。
+ *
+ * NavHost 的默认过渡是 `fadeIn/fadeOut(tween(700))`（自 navigation-compose 源码核实，代码未覆盖过），
+ * 700 ms 与 IME inset 动画重叠，是「点记一件 → 键盘出现」中可被感知的一段，故下调。
+ *
+ * 四个方向必须同一时长：`AnimatedContent` 的过渡要等 enter 与 exit **两者都结束**，
+ * 只缩短 exit 而留 enter 为 700 的话总时长仍是 700，达不到目的。
+ * （`popEnterTransition` / `popExitTransition` 的默认值即引用 `enterTransition` / `exitTransition`，
+ * 故此处只声明 enter/exit 两项即可覆盖全部 4 个方向。）
+ */
+private const val NAV_TRANSITION_MILLIS = 400
+
+/**
  * 唯一 NavHost：9 条 [ShounaRoute] 与 9 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
  *
  * 系统栏避让是**唯一容器级**职责（ARCHITECTURE §2、§7.2）：窗口是边到边的（`MainActivity`
@@ -54,6 +70,8 @@ fun RouteHandler(modifier: Modifier = Modifier) {
         modifier = modifier.windowInsetsPadding(
             WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime),
         ),
+        enterTransition = { fadeIn(animationSpec = tween(NAV_TRANSITION_MILLIS)) },
+        exitTransition = { fadeOut(animationSpec = tween(NAV_TRANSITION_MILLIS)) },
     ) {
         composable<Home> {
             HomeRoute()

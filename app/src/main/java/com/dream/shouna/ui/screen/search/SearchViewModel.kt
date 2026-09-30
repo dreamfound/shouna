@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dream.shouna.data.repository.ConfigRepository
 import com.dream.shouna.data.repository.ItemRepository
+import com.dream.shouna.data.repository.LocationRepository
 import com.dream.shouna.domain.model.ItemStatus
+import com.dream.shouna.domain.model.LocationTreeRow
 import com.dream.shouna.domain.search.SearchConfig
 import com.dream.shouna.domain.search.SearchDoc
 import com.dream.shouna.domain.search.SearchHit
@@ -17,7 +19,6 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -29,6 +30,10 @@ import kotlinx.coroutines.launch
  * FR-19 输入即搜 + FR-20 拼音 + FR-23 最近搜索词（ARCHITECTURE §4 F1-04 ③ / P0-04 ⑤⑥）：
  * `debounce(200ms)` + `collectLatest` + `Dispatchers.Default`；索引懒构建，冷启动不阻塞。
  *
+ * P1-06 ① 起叠加 **FR-22 三维筛选**（分类 / 位置 / 状态）：筛选与「输入即搜」正交
+ * ——它只**收窄**参与检索的文档集，不参与打分判定，因此不需要改 `SearchIndex` / `SearchScorer`
+ * （守 `实现约束.md` §4-5 的原始裁定「筛选不进检索判定」，但控件本期已进搜索页）。
+ *
  * 结果行的**展示信息**（位置路径 · 最后确认 + FR-27 超期标记）在本层组装：Screen 层不持有
  * [TimeUtil] / [ConfigRepository]（ARCHITECTURE §2）。
  *
@@ -38,6 +43,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
+    private val locationRepository: LocationRepository,
     private val configRepository: ConfigRepository,
     private val timeUtil: TimeUtil,
     private val searchConfig: SearchConfig,
@@ -49,6 +55,12 @@ class SearchViewModel @Inject constructor(
 
     /** 输入通道：UI 每次输入写入，经 [DEBOUNCE_MILLIS] 去抖后再检索。 */
     private val queryInput = MutableStateFlow("")
+
+    /**
+     * FR-22：筛选态（三维可叠加）。与 [queryInput] 一样是「输入」，参与同一条 combine
+     * ——筛选变化会像输入变化一样触发重算，不必另设一条刷新通道。
+     */
+    private val filters = MutableStateFlow(SearchFilters())
 
     /** 懒构建的内存索引；指纹未变时复用，不随每次输入重建。 */
     @Volatile
@@ -66,10 +78,23 @@ class SearchViewModel @Inject constructor(
                 // 超期阈值放进 combine（而不是事后补一次读）：保证「第一帧结果就是用真实阈值
                 // 判定的」，不靠一个猜的默认值顶着（P0 无改值入口，读一次即够）。
                 flow { emit(configRepository.thresholdMonths()) },
-            ) { query, docs, thresholdMonths -> SearchInput(query, docs, thresholdMonths) }
+                filters,
+                // 位置树：FR-22 的位置维度要判「含子层」，判定依据是位置树的父子关系（P1 §8.1-7）。
+                locationRepository.observeTree(),
+            ) { query, docs, thresholdMonths, currentFilters, tree ->
+                SearchInput(
+                    query = query,
+                    docs = docs,
+                    thresholdMonths = thresholdMonths,
+                    filters = currentFilters,
+                    tree = tree,
+                )
+            }
                 .collectLatest { input ->
-                    // 索引重建触发 = 文档列表指纹变化（§4 F1-04 ③）。
-                    val searchIndex = resolveIndex(input.docs)
+                    // 索引重建触发 = 文档列表指纹变化（§4 F1-04 ③）。筛选后的文档集参与构建：
+                    // 筛掉的条目根本不该进索引，也省得每次检索再判一遍维度。
+                    val scopedDocs = applyFilters(input.docs, input.filters, input.tree)
+                    val searchIndex = resolveIndex(scopedDocs)
                     val hits: List<SearchHit> = if (input.query.isBlank()) {
                         emptyList()
                     } else {
@@ -80,6 +105,8 @@ class SearchViewModel @Inject constructor(
                         it.copy(
                             results = hits.map { hit -> hit.toResultUi(input.thresholdMonths, now) },
                             isIndexing = false,
+                            filters = input.filters,
+                            filterChoices = buildFilterChoices(input.docs, input.tree),
                         )
                     }
                 }
@@ -119,30 +146,72 @@ class SearchViewModel @Inject constructor(
         queryInput.value = value
     }
 
-    // --- P1-06 ①（FR-22）：筛选 chips（骨架，未接入 Screen） -----------------------------
-    // 与「输入即搜」正交：筛选只**收窄**已命中的结果集，不参与检索判定，因此不必回到
-    // `SearchIndex` 里改打分（守 `实现约束.md` §4-5：筛选控件在 P1 才进搜索页）。
-    // 三个入口此刻只立签名，Screen 尚未挂 `FilterChips`，避免出现可点即崩的中间态。
+    // --- P1-06 ①（FR-22）：筛选 chips ---------------------------------------------------
+    // 三个入口都只写筛选态，重算由上面那条 combine 自动完成（筛选是它的一个输入）。
 
     /** FR-22：分类维度。 */
     fun onCategoryFilterSelected(categoryId: String?) {
-        TODO("P1-06 ①: 写入 filters.categoryId 并重算结果（可叠加、可清空）")
+        filters.update { it.copy(categoryId = categoryId) }
     }
 
     /** FR-22：位置维度。**含子层** —— 选中一个位置即含其全部子孙（P1 §8.1-7）。 */
     fun onLocationFilterSelected(locationId: String?) {
-        TODO("P1-06 ①: 写入 filters.locationId；匹配口径为「含子层」")
+        filters.update { it.copy(locationId = locationId) }
     }
 
     /** FR-22：状态维度。 */
     fun onStatusFilterSelected(status: ItemStatus?) {
-        TODO("P1-06 ①: 写入 filters.status")
+        filters.update { it.copy(status = status) }
     }
 
     /** FR-22：一键清空（三个维度一起）。纯状态复位，无副作用。 */
     fun onClearFilters() {
-        state.update { it.copy(filters = SearchFilters()) }
+        filters.value = SearchFilters()
     }
+
+    /**
+     * 按当前筛选态收窄文档集。三维**可叠加**（AND）；未设的维度不参与判定。
+     *
+     * 位置维度用「自己 + 全部子孙」的 id 集做判定，而不是比 `locationPath` 文本：
+     * 名称路径会因改名而变，且同名位置无从区分 —— 只有 id 与树的父子关系是稳定依据。
+     */
+    private fun applyFilters(
+        docs: List<SearchDoc>,
+        filters: SearchFilters,
+        tree: List<LocationTreeRow>,
+    ): List<SearchDoc> {
+        if (filters.isEmpty) return docs
+        val subtreeIds = filters.locationId?.let { rootId -> subtreeIdsOf(rootId, tree) }
+        return docs.filter { doc ->
+            (filters.categoryId == null || doc.categoryId == filters.categoryId) &&
+                (filters.status == null || doc.status == filters.status) &&
+                (subtreeIds == null || doc.locationId in subtreeIds)
+        }
+    }
+
+    /**
+     * FR-22 筛选项的候选项。
+     *
+     * 分类 / 状态取自**当前文档集**而不是分类表：搜索结果只含活跃物品，若按分类表罗列，
+     * 会出现「筛一个当前根本不可能命中的分类」这种只能得到空结果的选项。
+     * 位置取整棵树：位置维度是「含子层」的，父级本身就是合法目标（其下可能只有子孙里有东西），
+     * 因此不能只列「直接放着物品」的那几个位置。
+     */
+    private fun buildFilterChoices(
+        docs: List<SearchDoc>,
+        tree: List<LocationTreeRow>,
+    ): SearchFilterChoices = SearchFilterChoices(
+        categories = docs
+            .mapNotNull { doc -> doc.categoryId?.let { id -> SearchFilterChoice(id, doc.categoryName.orEmpty()) } }
+            .distinctBy { it.id }
+            .sortedBy { it.label },
+        locations = tree.map { row -> SearchFilterChoice(row.location.id, row.pathText) },
+        statuses = docs
+            .map { it.status }
+            .distinct()
+            .sortedBy { it.ordinal }
+            .map { status -> SearchFilterChoice(status.code, status.label()) },
+    )
 
     private fun resolveIndex(docs: List<SearchDoc>): SearchIndex {
         val fingerprint = SearchIndex.fingerprintOf(docs)
@@ -193,11 +262,13 @@ class SearchViewModel @Inject constructor(
         isOverdue = timeUtil.isOverdue(doc.lastConfirmedAt, thresholdMonths, now),
     )
 
-    /** 检索流的三元输入（`combine` 的类型载体）。 */
+    /** 检索流的多元输入（`combine` 的类型载体）。 */
     private data class SearchInput(
         val query: String,
         val docs: List<SearchDoc>,
         val thresholdMonths: Int,
+        val filters: SearchFilters,
+        val tree: List<LocationTreeRow>,
     )
 
     private companion object {
@@ -212,21 +283,50 @@ class SearchViewModel @Inject constructor(
     }
 }
 
+/**
+ * FR-22 的位置维度判定：`rootId` 自己 + 其**全部子孙**的 id 集（P1 §8.1-7 的递归口径）。
+ *
+ * 按**父子链** BFS，不比对 `location.path`：物化列是派生值，而父子关系才是它的真源
+ * （P1 §3.4-7），按父链走不依赖「物化列是否已回填」。
+ * `rootId` 不在树中（并发删除）时结果只含它自己 → 该筛选命中零条，符合直觉。
+ */
+private fun subtreeIdsOf(rootId: String, tree: List<LocationTreeRow>): Set<String> {
+    val childrenByParent = tree.groupBy { it.location.parentId }
+    val result = HashSet<String>()
+    val queue = ArrayDeque<String>()
+    queue.add(rootId)
+    while (queue.isNotEmpty()) {
+        val id = queue.removeFirst()
+        if (!result.add(id)) continue
+        childrenByParent[id]?.forEach { child -> queue.add(child.location.id) }
+    }
+    return result
+}
+
+/** FR-22：状态 chip 的中文文案（只出现在搜索页的筛选行，故就地定义）。 */
+private fun ItemStatus.label(): String = when (this) {
+    ItemStatus.IN_STORAGE -> "在存放中"
+    ItemStatus.TO_BE_PUT_BACK -> "待归位"
+    ItemStatus.GONE -> "不在了"
+}
+
 data class SearchUiState(
     val query: String = "",
     val results: List<SearchResultUi> = emptyList(),
     /** FR-23：空态展示的最近搜索词（按最近倒序，上限 20 条）。 */
     val recentQueries: List<String> = emptyList(),
     val isIndexing: Boolean = false,
-    /** P1-06 ①（FR-22）：筛选态。骨架期恒为「未筛选」。 */
+    /** P1-06 ①（FR-22）：筛选态。 */
     val filters: SearchFilters = SearchFilters(),
+    /** P1-06 ①（FR-22）：三个维度的候选项（由当前文档集与位置树派生）。 */
+    val filterChoices: SearchFilterChoices = SearchFilterChoices(),
 )
 
 /**
  * FR-22 的筛选三维（P1-06）。`null` = 该维度未筛选；三个维度**可叠加**。
  *
  * 位置维度选中的是**一个位置 id**，但匹配口径是「含子层」——即选中「家」也包含「家 › 储物间」
- * 下的物品（P1 §8.1-7）。子层展开在 ViewModel 做（要拿 `location.path` 前缀），不在组件里。
+ * 下的物品（P1 §8.1-7）。子层展开在 ViewModel 做（按父子链算自身+子孙集），不在组件里。
  */
 data class SearchFilters(
     val categoryId: String? = null,
@@ -237,6 +337,24 @@ data class SearchFilters(
     val isEmpty: Boolean
         get() = categoryId == null && locationId == null && status == null
 }
+
+/** 三维筛选项的候选项集合。 */
+data class SearchFilterChoices(
+    val categories: List<SearchFilterChoice> = emptyList(),
+    val locations: List<SearchFilterChoice> = emptyList(),
+    val statuses: List<SearchFilterChoice> = emptyList(),
+)
+
+/**
+ * 一个候选项：[id] 与 [label] 分离（分类与位置都是 UUID，不能拿名字当键）。
+ *
+ * 刻意**不复用** `ui.component.FilterOption`：UiState 是数据，组件参数是渲染细节，
+ * 让状态层依赖 `ui.component` 会把依赖方向倒过来（Screen 层做一次映射即可）。
+ */
+data class SearchFilterChoice(
+    val id: String,
+    val label: String,
+)
 
 /**
  * 结果行（P0-04 ⑥）：VM 已把「路径 · 时间」与超期判定算好，Screen 只负责渲染

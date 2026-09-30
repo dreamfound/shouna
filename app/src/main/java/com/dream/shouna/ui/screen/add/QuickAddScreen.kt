@@ -1,6 +1,7 @@
 package com.dream.shouna.ui.screen.add
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -34,6 +36,8 @@ import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
 import com.dream.shouna.ui.component.CategoryChips
 import com.dream.shouna.ui.component.LocationPickerSheet
+import com.dream.shouna.ui.navigation.LocalNavController
+import com.dream.shouna.ui.navigation.goItemDetail
 
 /**
  * 有状态包装层：唯一职责 = `hiltViewModel()` 取 ViewModel 后把 UiState 下传（ARCHITECTURE §2）。
@@ -46,6 +50,12 @@ fun QuickAddRoute() {
     val locationTree by viewModel.locationTree.collectAsStateWithLifecycle()
     val recentLocations by viewModel.recentLocations.collectAsStateWithLifecycle()
     val isPickerVisible by viewModel.isLocationPickerVisible.collectAsStateWithLifecycle()
+    val navController = LocalNavController.current
+
+    // FR-14：「查看已有」→ 跳到查重命中的那条记录（导航只在本层下发）。
+    LaunchedEffect(Unit) {
+        viewModel.viewSimilarEvents.collect { itemId -> navController.goItemDetail(itemId) }
+    }
 
     QuickAddScreen(
         uiState = uiState,
@@ -57,6 +67,7 @@ fun QuickAddRoute() {
         onCategorySelected = viewModel::onCategorySelected,
         onNoteChange = viewModel::onNoteChange,
         onSaveAndContinue = viewModel::onSaveAndContinue,
+        onViewSimilar = viewModel::onViewSimilar,
         onOpenLocationPicker = viewModel::onOpenLocationPicker,
         onDismissLocationPicker = viewModel::onDismissLocationPicker,
         onLocationSelected = viewModel::onLocationSelected,
@@ -83,6 +94,7 @@ fun QuickAddScreen(
     onCategorySelected: (String?) -> Unit,
     onNoteChange: (String) -> Unit,
     onSaveAndContinue: () -> Unit,
+    onViewSimilar: () -> Unit,
     onOpenLocationPicker: () -> Unit,
     onDismissLocationPicker: () -> Unit,
     onLocationSelected: (String) -> Unit,
@@ -141,6 +153,26 @@ fun QuickAddScreen(
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
         )
+
+        // FR-14：刚保存的那件有同名 / 高度相似时给一行轻提示 + 一个「查看」入口。
+        // **非阻塞**：不拦保存、不弹框；用户不理会继续录入也完全没问题（P1 §8.1-12）。
+        // 一开始输入新名字，本提示即消失（VM 在 onNameChange 里清掉），不会指着一件不相关的东西。
+        if (uiState.similarCount > 0) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = "已有 ${uiState.similarCount} 件同名或相近的物品",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onViewSimilar) {
+                    Text(text = "查看")
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 

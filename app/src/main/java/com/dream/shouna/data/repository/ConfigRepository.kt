@@ -1,17 +1,26 @@
 package com.dream.shouna.data.repository
 
 import com.dream.shouna.data.local.dao.ConfigDao
+import kotlinx.coroutines.flow.Flow
 
 /**
  * 应用配置读写（ARCHITECTURE-P0 §3.1 + P1 §4 P1-06）：消费者是 FR-27 / FR-29 的超期阈值。
  *
  * 之所以做成仓库而不是直接注入 DAO：UI 层不该知道配置存在哪张表。
- * **P1-06 起加写方法**（设置页），调用方不变。
+ * **P1-06 起加写方法与可观察读**（设置页），调用方不变。
  */
 interface ConfigRepository {
 
-    /** 超期阈值（月）。表里没有值时回落 [ConfigDao.DEFAULT_THRESHOLD_MONTHS]。 */
+    /** 超期阈值（月）。表里没有值时回落 [ConfigDao.DEFAULT_THRESHOLD_MONTHS]。一次读。 */
     suspend fun thresholdMonths(): Int
+
+    /**
+     * P1-06（FR-47）：超期阈值的**可观察**形态 —— 设置页改档后，C-4 超期清单**即时**跟着变。
+     *
+     * 与 [thresholdMonths] 同一回落口径（缺失 / 脏数据 → [ConfigDao.DEFAULT_THRESHOLD_MONTHS]），
+     * 不各自实现一遍，否则「读一次」与「订阅」两条路径可能给出不同的值。
+     */
+    fun observeThresholdMonths(): Flow<Int>
 
     /**
      * FR-47：写入超期阈值。设置页只给 **3 / 6 / 12** 三个档位（P1 §0）。

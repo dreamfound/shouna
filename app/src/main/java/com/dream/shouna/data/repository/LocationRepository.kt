@@ -72,10 +72,13 @@ interface LocationRepository {
     suspend fun move(nodeId: String, newParentId: String?): Boolean
 
     /**
-     * FR-04：合并位置 —— [sourceId] 的子位置与物品**全部改挂** [targetId]，随后 source 按
-     * 「删位置」既有档位处理（不得产生孤儿）。方向由调用方显式给出，不做自动推断（P1 §8.1-10）。
+     * FR-04：合并位置 —— [sourceId] 的子位置与物品**全部改挂** [targetId]，随后 source 消失
+     * （不得产生孤儿）。方向由调用方显式给出，不做自动推断（P1 §8.1-10）。
      *
-     * 返回 false 的情形：任一方不存在、source 为内置哨兵、target 为 source 自身或位于其子树内。
+     * source 在子位置与物品都改挂之后已无下属，直接被删；**不走「删除两档」** ——
+     * 那两档解决的是「物品往哪去」，而此处物品已有明确去处（就是 target）。
+     *
+     * 返回 false 的情形：任一方不存在、任一方为内置哨兵、同 id、target 位于 source 子树内。
      */
     suspend fun merge(sourceId: String, targetId: String): Boolean
 
@@ -87,6 +90,14 @@ interface LocationRepository {
      * 「本层 N 件 / 含子层共 M 件」；`gone` 不计（P1 §8.1-7 的递归口径）。
      */
     fun observeCounts(nodeId: String): Flow<LocationCounts>
+
+    /**
+     * P1-03（C-1 第二块）：位置总数 —— **不含内置哨兵**（§2-9：哨兵是系统保留位，不外露）。
+     *
+     * 为什么不复用 [observeTree] 的长度：`buildTreeRows` 会丢弃「父级缺失 / 被过滤」的节点
+     * （有意的降级），树长因此可能小于真实位置数；统计数字不该受渲染降级影响。
+     */
+    fun observeLocationCount(): Flow<Int>
 
     companion object {
         /** 录入页「最近」chips 的条数（FR-11）。 */

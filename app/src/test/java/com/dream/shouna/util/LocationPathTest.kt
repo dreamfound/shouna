@@ -69,4 +69,34 @@ class LocationPathTest {
         assertThat(LocationPath.format(listOf(home, storage)))
             .isEqualTo("家" + LocationPath.SEPARATOR + "储物间")
     }
+
+    // ---- P1-01：ID 序列路径（物化列 `location.path` 的唯一口径） ----------------------
+
+    @Test
+    fun buildIdPath_rootLevelKeepsLeadingSlash() {
+        // 根级（父路径 = 空串）也必须产出 `/自身id/` —— 这与 `MIGRATION_1_2` 的
+        // `'/' || id || '/'` 是同一形态。少了前导 `/` 就会让「新装库」与「升级库」
+        // 的 `path` 长得不一样（P1 §3.2 明文要求两条路径同形）。
+        assertThat(LocationPath.buildIdPath(selfId = "home", parentPath = "")).isEqualTo("/home/")
+    }
+
+    @Test
+    fun buildIdPath_appendsUnderParentPath() {
+        assertThat(LocationPath.buildIdPath(selfId = "storage", parentPath = "/home/"))
+            .isEqualTo("/home/storage/")
+        // 父路径末尾漏了分隔符时自动补上，不产出拼不上的路径。
+        assertThat(LocationPath.buildIdPath(selfId = "storage", parentPath = "/home"))
+            .isEqualTo("/home/storage/")
+    }
+
+    @Test
+    fun isDescendantPath_includesSelfAndRejectsLookalikePrefix() {
+        val ancestor = "/a/"
+        assertThat(LocationPath.isDescendantPath(candidate = "/a/", ancestorPath = ancestor)).isTrue()
+        assertThat(LocationPath.isDescendantPath(candidate = "/a/b/", ancestorPath = ancestor)).isTrue()
+        // 整段 ID 匹配：`/ab/` 不是 `/a/` 的子孙（裸 id 拼接就会误判）。
+        assertThat(LocationPath.isDescendantPath(candidate = "/ab/", ancestorPath = ancestor)).isFalse()
+        // 空前缀不构成祖先关系（否则「空前缀匹配一切」会放行非法移动）。
+        assertThat(LocationPath.isDescendantPath(candidate = "/a/", ancestorPath = "")).isFalse()
+    }
 }

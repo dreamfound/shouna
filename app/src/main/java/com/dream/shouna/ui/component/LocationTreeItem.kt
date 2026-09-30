@@ -66,8 +66,19 @@ fun LocationTreeItem(
             modifier = Modifier.weight(1f),
         )
 
+        // FR-06：临时位置标记。是否临时是 `Location` 上的一个布尔事实，不是本组件的判定。
+        if (row.location.isTemporary) {
+            TemporaryMark(modifier = Modifier.padding(end = 6.dp))
+        }
+
+        // P1-02（FR-21）：本层与含子层两个数都给 —— 只给一个数时，用户无法判断
+        // 「一键确认这个位置」到底会动到几件东西。
         Text(
-            text = "${row.itemCount} 件",
+            text = if (row.hasChildren) {
+                "本层 ${row.itemCount} 件 / 含子层共 ${row.subtreeItemCount} 件"
+            } else {
+                "${row.itemCount} 件"
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

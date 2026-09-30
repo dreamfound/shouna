@@ -149,19 +149,99 @@ class LocationRepositoryImpl @Inject constructor(
         locationDao.touchLastUsed(id = id, at = timeUtil.nowMillis())
     }
 
-    // --- P1-02（FR-04 / 06 / 21 / 28）：位置树深化（骨架，桩体待实现） ------------------
+    // --- P1-02（FR-04 / 06 / 21 / 28）：位置树深化 ----------------------------------------
 
-    override suspend fun move(nodeId: String, newParentId: String?): Boolean =
-        TODO("P1-02 ①: 校验 isDescendantPath → 同事务改 parent_id + 重写子树 path")
+    override suspend fun move(nodeId: String, newParentId: String?): Boolean = transactionRunner.run {
+        val node = locationDao.findById(nodeId) ?: return@run false
+        // 内置哨兵不参与移动（`is_built_in` 的位置本是系统保留位，§2-9）。
+        if (node.isBuiltIn) return@run false
 
-    override suspend fun merge(sourceId: String, targetId: String): Boolean =
-        TODO("P1-02 ②: 子位置与物品改挂 target → 复用既有删除档位处理 source")
+        val newParent = newParentId?.let { id -> locationDao.findById(id) ?: return@run false }
+        if (newParent != null) {
+            if (newParent.isBuiltIn) return@run false
+            // §3.4-8：禁止移入自身或自身子树。用 ID 序列路径前缀判定 —— 整段匹配
+            // （`/a/` vs `/ab/`）不会误判，这是选「ID 序列」而非裸 id 拼接的直接理由。
+            // `newParent == node` 时两者路径相等，`isDescendantPath` 的「含相等」即把自移挡下。
+            if (LocationPath.isDescendantPath(candidate = newParent.path, ancestorPath = node.path)) {
+                return@run false
+            }
+        }
 
-    override suspend fun setTemporary(nodeId: String, flag: Boolean): Boolean =
-        TODO("P1-02 ⑤: 写 location.is_temporary（位置侧操作，不刷新物品时间戳）")
+        relocate(node = node, newParent = newParent)
+        true
+    }
+
+    override suspend fun merge(sourceId: String, targetId: String): Boolean = transactionRunner.run {
+        val source = locationDao.findById(sourceId) ?: return@run false
+        val target = locationDao.findById(targetId) ?: return@run false
+        if (source.isBuiltIn || target.isBuiltIn) return@run false
+        if (sourceId == targetId) return@run false
+        // 目标位于 source 子树内 → 改挂自己会造成自环（与 move 同一条前置校验）。
+        if (LocationPath.isDescendantPath(candidate = target.path, ancestorPath = source.path)) {
+            return@run false
+        }
+
+        // ① 子位置整棵改挂 target —— 逐个走 [relocate]，与移动共用同一条路径重写逻辑。
+        locationDao.childrenOf(sourceId).forEach { child ->
+            relocate(node = child, newParent = target)
+        }
+
+        // ② source 的直属物品改挂 target。状态不动；「位置变动」按 §3.5 矩阵刷 `last_modified_at`。
+        itemDao.moveItems(sourceId = sourceId, targetId = targetId, modifiedAt = timeUtil.nowMillis())
+
+        // ③ source 此时既无子位置（①已改挂）也无物品（②已迁移）→ 直接删即无孤儿。
+        //    未走「删除两档」是刻意的：那两档解决的是「物品往哪去」，此处物品已有去处。
+        locationDao.delete(sourceId)
+        true
+    }
+
+    override suspend fun setTemporary(nodeId: String, flag: Boolean): Boolean {
+        val node = locationDao.findById(nodeId) ?: return false
+        if (node.isBuiltIn) return false
+        // 位置侧操作，不触碰任何物品时间戳（P1 §3.5）。
+        return locationDao.setTemporary(id = nodeId, flag = flag) > 0
+    }
 
     override fun observeCounts(nodeId: String): Flow<LocationCounts> =
-        TODO("P1-02 ③: 本层计数 + 子树前缀区间计数的合并流")
+        // 复用与 `observeTree` 同一对数据源：树行与「含子层共 M 件」由此天然同源，
+        // 不会出现「树行说 3 件、下钻列表显示 4 件」这种自相矛盾。
+        combine(locationDao.observeAll(), itemDao.observeActiveCounts()) { rows, counts ->
+            val directById = counts.associate { it.locationId to it.itemCount }
+            val all = rows.map { it.toDomain() }
+            LocationCounts(
+                nodeId = nodeId,
+                directCount = directById[nodeId] ?: 0,
+                subtreeCount = subtreeItemCounts(all, directById)[nodeId] ?: 0,
+            )
+        }
+
+    override fun observeLocationCount(): Flow<Int> = locationDao.observeUsableCount()
+
+    /**
+     * 把 [node] 整棵子树挂到 [newParent] 下：改自身 `parent_id` + 重写**全部子孙**的 `path`。
+     *
+     * 调用方必须已在事务内并完成前置校验（内置、自身/子树、目标存在）。父级未变时直接返回
+     * —— 无谓的重写会白跑一次子树遍历。
+     */
+    private suspend fun relocate(node: LocationEntity, newParent: LocationEntity?) {
+        if (node.parentId == newParent?.id) return
+
+        val oldPath = node.path
+        val newPath = LocationPath.buildIdPath(selfId = node.id, parentPath = newParent?.path.orEmpty())
+        // 旧路径为空说明该行是脏数据（迁移应已回填）→ 子孙无法按前缀定位，只改父级与自身。
+        val descendants = if (oldPath.isEmpty()) {
+            emptyList()
+        } else {
+            locationDao.descendantsOf(prefix = oldPath, excludeId = node.id)
+        }
+
+        locationDao.updateParentAndPath(id = node.id, parentId = newParent?.id, path = newPath)
+        descendants.forEach { row ->
+            // 子孙新路径 = 自身新路径 + （旧路径去掉旧前缀的尾部）。ID 序列路径自带收尾 `/`，
+            // 故 `removePrefix` 的结果一定以 id + `/` 开头，不会少或多一个分隔符。
+            locationDao.updatePath(id = row.id, path = newPath + row.path.removePrefix(oldPath))
+        }
+    }
 
     /** 子树 id 收集，返回顺序为**子先于父**（先叶子、后根），供自底向上删除使用。 */
     private suspend fun collectSubtreeIdsBottomUp(rootId: String): List<String> {
@@ -232,6 +312,8 @@ internal fun buildTreeRows(
 ): List<LocationTreeRow> {
     val pathTextById = LocationPath.textsOf(locations)
     val childCountByParent = locations.groupingBy { it.parentId }.eachCount()
+    // P1-02（FR-21）：本层 + 全部子孙的件数，与 `observeCounts` 共用同一纯函数 ⇒ 两处口径不可能漂移。
+    val subtreeById = subtreeItemCounts(locations, itemCountById)
     val rows = ArrayList<LocationTreeRow>(locations.size)
 
     fun appendChildren(parentId: String?, depth: Int) {
@@ -244,8 +326,7 @@ internal fun buildTreeRows(
                     depth = depth,
                     pathText = pathTextById[node.id].orEmpty(),
                     itemCount = itemCountById[node.id] ?: 0,
-                    // TODO(P1-02 ③): 由子树前缀区间聚合出「含子层共 M 件」，当前留默认 0（骨架期不展示）。
-                    subtreeItemCount = 0,
+                    subtreeItemCount = subtreeById[node.id] ?: (itemCountById[node.id] ?: 0),
                     hasChildren = (childCountByParent[node.id] ?: 0) > 0,
                 )
                 appendChildren(node.id, depth + 1)
@@ -254,4 +335,36 @@ internal fun buildTreeRows(
 
     appendChildren(null, 0)
     return rows
+}
+
+/**
+ * 各节点的「含子层件数」（P1-02，FR-21）：`节点自身直属数 + 全部子孙递归和`。
+ *
+ * 纯函数、与数据源无关。之所以在内存里做而不发一条 `path` 前缀 SQL：树行渲染本就要
+ * 加载整棵树与全量直属计数（`observeTree` 的两个数据源），再打一次库是重复 IO；
+ * 位置上量级（NFR-07 的 500 节点）下这一次遍历的代价可忽略。
+ * 需要**单点**计数的调用方（`observeCounts`）也用同一函数，保证两处数字恒等。
+ *
+ * 防御：脏数据成环时 `computing` 集合让递归就地返回 0 而非死循环。
+ */
+internal fun subtreeItemCounts(
+    locations: List<Location>,
+    directCountById: Map<String, Int>,
+): Map<String, Int> {
+    val childrenByParent = locations.groupBy { it.parentId }
+    val result = HashMap<String, Int>(locations.size)
+    val computing = HashSet<String>()
+
+    fun rollup(node: Location): Int {
+        result[node.id]?.let { return it }
+        if (!computing.add(node.id)) return 0
+        val total = (directCountById[node.id] ?: 0) +
+            childrenByParent[node.id].orEmpty().sumOf { rollup(it) }
+        computing.remove(node.id)
+        result[node.id] = total
+        return total
+    }
+
+    locations.forEach { rollup(it) }
+    return result
 }

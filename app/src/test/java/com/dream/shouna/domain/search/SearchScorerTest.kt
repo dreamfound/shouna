@@ -93,6 +93,39 @@ class SearchScorerTest {
         assertThat(SearchScorer.highlightRange(name = "电风扇", normalizedQuery = "dfs")).isNull()
     }
 
+    // ---- 别名档（P1-04：与名称同档） ----------------------------------------------
+
+    @Test
+    fun aliasHitsAtNameTier_notALowerTier() {
+        val fan = doc(name = "电风扇", aliases = listOf("台扇", "风扇"))
+
+        // 别名命中记作 NAME 档 —— 别名存在的意义就是「换个说法搜同一个东西」，
+        // 单开低档会让它被同名的普通命中挤下去（P1 §8.1-3）。
+        assertThat(SearchScorer.matchType(fan, "台扇")).isEqualTo(MatchType.NAME)
+        assertThat(SearchScorer.matchType(fan, "风扇")).isEqualTo(MatchType.NAME)
+        assertThat(SearchScorer.score(fan, "台扇", config)).isEqualTo(config.nameWeight)
+    }
+
+    @Test
+    fun aliasHitDoesNotInventANameHighlight() {
+        // 别名命中没有可高亮的名称片段（名称里根本没有「台扇」）→ 区间为 null，由 UI 渲染纯文本行。
+        assertThat(SearchScorer.highlightRange(name = "电风扇", normalizedQuery = "台扇")).isNull()
+    }
+
+    @Test
+    fun indexMatchesAliasAndRanksItWithNameHits() {
+        val index = SearchIndex.build(
+            listOf(
+                doc(itemId = "aliased", name = "电风扇", aliases = listOf("台扇")),
+                doc(itemId = "plain", name = "台灯"),
+            ),
+        )
+
+        assertThat(index.search("台扇", 10).map { it.doc.itemId }).containsExactly("aliased")
+        // 名称与别名同分 → 由 `lastModifiedAt` 次序兜底，两条命中不会互相压制。
+        assertThat(index.search("台", 10).map { it.doc.itemId }).containsExactly("aliased", "plain")
+    }
+
     // ---- 端到端（SearchIndex 四档合跑） -------------------------------------------
 
     @Test
@@ -136,6 +169,8 @@ class SearchScorerTest {
     private fun doc(
         itemId: String = "id-1",
         name: String,
+        /** P1-04：别名（原串）；归一化形态就地派生，与 `ItemRepositoryImpl.toSearchDoc` 同口径。 */
+        aliases: List<String> = emptyList(),
         pinyinFull: String = "",
         pinyinInitial: String = "",
         locationPath: String = "",
@@ -148,6 +183,8 @@ class SearchScorerTest {
         itemId = itemId,
         name = name,
         normalizedName = TextNormalizer.normalize(name),
+        aliases = aliases,
+        normalizedAliases = aliases.map { TextNormalizer.normalize(it) },
         pinyinFull = pinyinFull,
         pinyinInitial = pinyinInitial,
         categoryId = categoryName?.let { "builtin-category-$it" },

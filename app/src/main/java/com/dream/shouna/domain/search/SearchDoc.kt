@@ -19,8 +19,6 @@ data class SearchDoc(
     /**
      * P1-04：别名（展示用原串）。**与名称同档**（`MatchType.NAME`），不新开档位
      * ——别名存在的意义就是「换个说法也能搜到同一个东西」，另立低档会让它被同名命中挤下去。
-     *
-     * 骨架期由 `ItemRepositoryImpl.toSearchDoc` 留空；P1-04 实现期从 `item.alias_blob` 解码填入。
      */
     val aliases: List<String> = emptyList(),
     /** P1-04：别名的归一化形态（检索比较用）。 */
@@ -32,6 +30,13 @@ data class SearchDoc(
     val categoryId: String?,
     val categoryName: String?,
     val normalizedCategoryName: String?,
+    /**
+     * P1-06：物品所在位置 id —— FR-22 的**位置筛选**输入。
+     *
+     * 为什么不能拿 [locationPath] 顶替：那是给人看的**名称路径**（改名即变），
+     * 而「含子层」的判定依赖位置树的前缀关系（P1 §8.1-7），必须靠 id 才能落到 `location.path`。
+     */
+    val locationId: String = "",
     /** FR-02：位置路径展示文本（「家 › 储物间 › 纸箱-07」）。 */
     val locationPath: String = "",
     /** 位置路径的归一化文本（检索比较用；[locationPath] 是展示用原样）。 */

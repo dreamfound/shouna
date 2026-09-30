@@ -217,6 +217,142 @@ class LocationRepositoryImplTest {
         assertThat(stamped!!).isAtMost(timeUtil.nowMillis())
     }
 
+    // ---- P1-02（FR-04 移动 / 合并）--------------------------------------------------
+
+    @Test
+    fun move_rewritesWholeSubtreePathAndLeavesNoOrphan() = runTest {
+        locationDao.insert(bag())
+        insertItem(id = "item-bag", name = "票据", locationId = "bag")
+
+        val moved = repository.move(nodeId = "box", newParentId = "home")
+
+        assertThat(moved).isTrue()
+        assertThat(locationDao.findById("box")?.parentId).isEqualTo("home")
+        assertThat(locationDao.findById("box")?.path).isEqualTo("/home/box/")
+        // 子孙路径随子树整体改前缀（`path` 与 `parent_id` 恒一致，§3.4-7）。
+        assertThat(locationDao.findById("bag")?.path).isEqualTo("/home/box/bag/")
+        assertThat(locationDao.findById("bag")?.parentId).isEqualTo("box")
+        // 物品只认 `location_id`，位置移动不动物品归属。
+        assertThat(itemDao.findById("item-bag")?.locationId).isEqualTo("bag")
+        // 面包屑是派生值 → 移动后即时跟随。
+        val byId = repository.observeTree().first().associateBy { it.location.id }
+        assertThat(byId.getValue("bag").pathText).isEqualTo("家 › 纸箱-07 › 袋")
+    }
+
+    @Test
+    fun move_toRootLevelAndToSameParentAreAllowed() = runTest {
+        assertThat(repository.move(nodeId = "box", newParentId = null)).isTrue()
+        assertThat(locationDao.findById("box")?.parentId).isNull()
+        assertThat(locationDao.findById("box")?.path).isEqualTo("/box/")
+
+        // 父级未变 = 无事发生，但仍算成功（不是失败）。
+        assertThat(repository.move(nodeId = "box", newParentId = null)).isTrue()
+        assertThat(locationDao.findById("box")?.path).isEqualTo("/box/")
+    }
+
+    @Test
+    fun move_intoOwnSubtreeOrBuiltInTargetIsRejected() = runTest {
+        // §3.4-8：自身与自身子孙都不可作目标。
+        assertThat(repository.move(nodeId = "storage", newParentId = "storage")).isFalse()
+        assertThat(repository.move(nodeId = "storage", newParentId = "box")).isFalse()
+        // 内置哨兵双方都不参与。
+        assertThat(repository.move(nodeId = BuiltInData.UNSPECIFIED_LOCATION_ID, newParentId = "home")).isFalse()
+        assertThat(repository.move(nodeId = "box", newParentId = BuiltInData.UNSPECIFIED_LOCATION_ID)).isFalse()
+        // 不存在的一方。
+        assertThat(repository.move(nodeId = "no-such-id", newParentId = "home")).isFalse()
+        assertThat(repository.move(nodeId = "box", newParentId = "no-such-id")).isFalse()
+
+        // 拒绝时数据零变动。
+        assertThat(locationDao.findById("storage")?.parentId).isEqualTo("home")
+        assertThat(locationDao.findById("box")?.path).isEqualTo("/home/storage/box/")
+    }
+
+    @Test
+    fun merge_rehangsChildrenAndItemsThenRemovesSource() = runTest {
+        insertItem(id = "item-storage", name = "说明书", locationId = "storage")
+        insertItem(id = "item-box", name = "电风扇", locationId = "box")
+
+        val merged = repository.merge(sourceId = "storage", targetId = "home")
+
+        assertThat(merged).isTrue()
+        // source 消失，子位置与直属物品改挂 target。
+        assertThat(locationDao.findById("storage")).isNull()
+        assertThat(locationDao.findById("box")?.parentId).isEqualTo("home")
+        assertThat(locationDao.findById("box")?.path).isEqualTo("/home/box/")
+        assertThat(itemDao.findById("item-storage")?.locationId).isEqualTo("home")
+        // 状态不动（合并是位置变动，不是状态变化）。
+        assertThat(itemDao.findById("item-storage")?.status).isEqualTo(ItemStatus.IN_STORAGE)
+        // 深层物品跟着它的位置走，不需要单独搬。
+        assertThat(itemDao.findById("item-box")?.locationId).isEqualTo("box")
+        // 无孤儿：每个物品的 `location_id` 都指向仍存在的位置。
+        val aliveIds = locationDao.snapshot().map { it.id }.toSet()
+        assertThat(itemDao.snapshot().all { it.locationId in aliveIds }).isTrue()
+    }
+
+    @Test
+    fun merge_intoOwnSubtreeOrItselfIsRejected() = runTest {
+        assertThat(repository.merge(sourceId = "storage", targetId = "box")).isFalse()
+        assertThat(repository.merge(sourceId = "storage", targetId = "storage")).isFalse()
+        assertThat(repository.merge(sourceId = "box", targetId = BuiltInData.UNSPECIFIED_LOCATION_ID)).isFalse()
+        assertThat(repository.merge(sourceId = "no-such-id", targetId = "home")).isFalse()
+        assertThat(repository.merge(sourceId = "storage", targetId = "no-such-id")).isFalse()
+
+        assertThat(locationDao.findById("storage")).isNotNull()
+        assertThat(locationDao.findById("box")?.parentId).isEqualTo("storage")
+    }
+
+    // ---- P1-02（FR-06 临时标记 / FR-21 递归计数）-------------------------------------
+
+    @Test
+    fun setTemporary_flipsFlagWithoutTouchingItemTimestamps() = runTest {
+        val item = insertItem(id = "item-box", name = "电风扇", locationId = "box")
+
+        assertThat(repository.setTemporary(nodeId = "box", flag = true)).isTrue()
+        assertThat(locationDao.findById("box")?.isTemporary).isTrue()
+        // 位置侧操作：物品时间戳一律不动（P1 §3.5）。
+        assertThat(itemDao.findById(item.id)?.lastModifiedAt).isEqualTo(item.lastModifiedAt)
+        assertThat(itemDao.findById(item.id)?.lastConfirmedAt).isNull()
+
+        assertThat(repository.setTemporary(nodeId = "box", flag = false)).isTrue()
+        assertThat(locationDao.findById("box")?.isTemporary).isFalse()
+    }
+
+    @Test
+    fun setTemporary_rejectsBuiltInAndUnknown() = runTest {
+        assertThat(repository.setTemporary(BuiltInData.UNSPECIFIED_LOCATION_ID, true)).isFalse()
+        assertThat(repository.setTemporary("no-such-id", true)).isFalse()
+    }
+
+    @Test
+    fun observeCounts_separatesDirectFromSubtreeAndExcludesGone() = runTest {
+        insertItem(id = "item-storage", name = "说明书", locationId = "storage")
+        insertItem(id = "item-box", name = "电风扇", locationId = "box")
+        val gone = insertItem(id = "item-gone", name = "旧电池", locationId = "box")
+        itemDao.updateStatus(gone.id, ItemStatus.GONE, 1L)
+
+        val counts = repository.observeCounts("storage").first()
+
+        assertThat(counts.nodeId).isEqualTo("storage")
+        assertThat(counts.directCount).isEqualTo(1)
+        // 含子层：storage(1) + box(1)；`gone` 不计（P1 §8.1-7）。
+        assertThat(counts.subtreeCount).isEqualTo(2)
+    }
+
+    @Test
+    fun observeTree_reportsSubtreeCountOnEveryRow() = runTest {
+        insertItem(id = "item-storage", name = "说明书", locationId = "storage")
+        insertItem(id = "item-box", name = "电风扇", locationId = "box")
+
+        val byId = repository.observeTree().first().associateBy { it.location.id }
+
+        assertThat(byId.getValue("home").subtreeItemCount).isEqualTo(2)
+        assertThat(byId.getValue("storage").subtreeItemCount).isEqualTo(2)
+        assertThat(byId.getValue("box").subtreeItemCount).isEqualTo(1)
+        // 本层直属数与含子层数分开给：树行要同时说清两件事。
+        assertThat(byId.getValue("home").itemCount).isEqualTo(0)
+        assertThat(byId.getValue("storage").itemCount).isEqualTo(1)
+    }
+
     // ---- 测试脚手架 ---------------------------------------------------------------
 
     private suspend fun insertItem(id: String, name: String, locationId: String): ItemEntity {
@@ -239,6 +375,20 @@ class LocationRepositoryImplTest {
         itemDao.insert(item)
         return item
     }
+
+    /** 纸箱下的第三层：验证移动时**多层子孙**的路径整体改写。 */
+    private fun bag(): LocationEntity = LocationEntity(
+        id = "bag",
+        name = "袋",
+        parentId = "box",
+        path = "/home/storage/box/bag/",
+        isBuiltIn = false,
+        isTemporary = false,
+        note = null,
+        sortOrder = 1,
+        lastUsedAt = null,
+        createdAt = 0L,
+    )
 
     private fun seedLocations(): List<LocationEntity> = listOf(
         LocationEntity(

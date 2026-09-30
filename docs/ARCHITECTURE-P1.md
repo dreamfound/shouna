@@ -14,7 +14,7 @@
 |---|---|
 | 范围 | **11 条 FR**：FR-04 / 06 / 14 / 21 / 22 / 28 / 29 / 33 / 38 / 44 / 47；另含**无编号 3 项**：别名、数量、物品编辑页（用户 2026-09-29 确认纳入） |
 | 存储 | **仍是 5 张表，不新增表**；`version 1 → 2`，只加 `location.path` 一列 + 1 个索引 |
-| 迁移 | **本项目首个真实迁移**：`ALTER TABLE` + 递归 CTE 回填 + 建索引；**不启用** `fallbackToDestructiveMigration` |
+| 迁移 | **本项目首个真实迁移**：`ALTER TABLE` + 递归 CTE 回填（**带 `COALESCE` 兜底**，否则脏数据会让迁移整体失败）+ 建索引；**不启用** `fallbackToDestructiveMigration` |
 | `path` 语义 | **ID 序列**（非名称路径）：`/根id/…/自身id/`，含自身、前后带 `/`；子孙查询 = 前缀 `LIKE`。名称路径（面包屑）**仍由父链实时派生**，不入库 |
 | 别名 | **启用既有 `item.alias_blob`**（分隔符拼接多个别名），**不建 `item_alias` 表**——守 `prd/08` §7.6 的 A-2（「名称 + 别名」派生的检索键随物品记录持久化） |
 | 数量 | **启用既有 `item.quantity`**：仅整数、默认 1、不做单位换算（`prd/11` Q3） |
@@ -46,7 +46,7 @@
 | FR-47 | 设置页 | 阈值配置、分类管理入口、隐私说明、关于；**无「显示完整功能」开关** | P-SETTINGS |
 | —（无编号） | 别名 | 多个别名，参与检索；编辑位在 P-ITEM-EDIT | P-ITEM-EDIT |
 | —（无编号） | 数量 | 整数、默认 1、无单位；编辑位在 P-ITEM-EDIT | P-ITEM-EDIT |
-| —（无编号） | 物品编辑页 | 补全分类 / 别名 / 备注 / 数量 / 去向备注；同时是详情页「⋯更多」折叠区的落点 | P-ITEM-EDIT |
+| —（无编号） | 物品编辑页 | 补全分类 / 别名 / 备注 / 数量；同时是详情页「⋯更多」折叠区的落点 | P-ITEM-EDIT |
 
 > **本次不做**：P2 全部 16 条（FR-08 / 15 / 16 / 17 / 18 / 24 / 30 / 31 / 32 / 34 / 35 / 36 / 37 / 39 / 45 / 49）、V2 全部、统计卡片 C-2 / C-3 / C-6、标签（FR-45）、回收站（FR-49）、拍照 / 扫码 / 语音。**导出 / 导入（FR-40 / 42 / 43）已永久废弃**，本页不实现、不预留（见 `prd/05` §4.11 第 6 项）。
 
@@ -56,18 +56,19 @@
 
 | 层 | 本次变化 |
 |---|---|
-| 数据源 | 仍 `data/local`；**+1 迁移**（`Migrations.kt`）；`LocationEntity` 加 `path` |
-| Repository | 三个仓库**扩展方法**（不改既有签名）：`LocationRepository` 加 `move` / `merge` / `setTemporary` / 计数；`ItemRepository` 加 `updateFields`（别名 / 数量 / 备注 / 分类）/ `confirmByLocation` / 重名查重；`CategoryRepository` 由**只读扩为可写** |
-| domain | 新增纯函数：`location.path` 拼装、重名相似度判定；`SearchDoc` 补别名 |
-| UI | 新增 4 页 + 4 组件；`P-BROWSE` 与 `P-ITEM-DETAIL` 补齐 F2 能力 |
+| 数据源 | 仍 `data/local`；**+1 迁移**（`Migrations.kt`，挂载于 `di/DatabaseModule`）；`LocationEntity` 加 `path`；四个 DAO 扩方法（`ConfigDao` 加可观察读） |
+| Repository | 四个仓库**扩展方法**（不改既有签名）：`LocationRepository` 加 `move` / `merge` / `setTemporary` / `observeCounts` / `observeLocationCount`；`ItemRepository` 加 `updateFields`（别名 / 数量 / 备注 / 分类）/ `confirmByLocation` / `findSimilar` / `putBack` / `moveItem` / 三个流；`CategoryRepository` 由**只读扩为可写**；`ConfigRepository` 加 `observeThresholdMonths` / `setThresholdMonths` |
+| domain | 新增纯函数：ID 序列 `path` 拼装（`LocationPath.buildIdPath` / `isDescendantPath`）、重名相似度判定；`SearchDoc` 补别名，`StoredItem` 补 `aliases` / `quantity` |
+| UI | 新增 **4 页 + 5 组件**（组件：`LocationMoveSheet` / `TemporaryMark` / `StatCard` / `AliasEditor` / `FilterChips`）；`P-BROWSE` 与 `P-ITEM-DETAIL` 补齐 F2 能力 |
 
-**Repository（3 个，均为扩展）**
+**Repository（4 个，均为扩展）**
 
-- `LocationRepository`：既有 `observeTree` / `observeChildren` / `observeItemsIn` / `create` / `rename` / `setNote` / `delete(mode, migrateTargetId)` / `touchLastUsed`；新增 `move(nodeId, newParentId)`、`merge(sourceId, targetId)`、`setTemporary(nodeId, flag)`、`observeCounts(nodeId)`（本层 / 含子层）
-- `ItemRepository`：新增 `updateFields(itemId, patch)`（分类 / 别名 / 数量 / 备注 / 去向备注一张补丁表）、`confirmByLocation(nodeId)`（含子层）、`findSimilar(name)`（FR-14 查重）
+- `LocationRepository`：既有 `observeTree` / `observeChildren` / `observeItemsIn` / `create` / `rename` / `setNote` / `delete(mode, migrateTargetId)` / `touchLastUsed`；新增 `move(nodeId, newParentId)`、`merge(sourceId, targetId)`、`setTemporary(nodeId, flag)`、`observeCounts(nodeId)`（本层 / 含子层两个数）、`observeLocationCount()`
+- `ItemRepository`：新增 `updateFields(itemId, patch)`（分类 / 别名 / 数量 / 备注一张补丁表 `ItemFieldPatch`）、`confirmByLocation(nodeId)`（含子层）、`findSimilar(name)`（FR-14 查重）、`putBack(itemId, locationId)`（C-5 归位）、`moveItem(itemId, locationId)`
 - `CategoryRepository`：新增 `create` / `rename` / `delete`
+- `ConfigRepository`：P0 只有一次读 `thresholdMonths()`；本次加 `observeThresholdMonths()`（让 C-4 随设置页改档即时变化）与 `setThresholdMonths(months)`
 
-**写路径守卫**：移动子树、合并位置、批量确认均跨表 / 跨多行 —— 一律在**单个 Room 事务**内完成（守 `实现约束.md` §2 的 2-5）。
+**写路径守卫**：移动子树、合并位置、批量确认均跨表 / 跨多行 —— 一律在**单个 Room 事务**内完成（守 `实现约束.md` §2 的 2-5）。反倒是一次性的 `putBack` / `moveItem`（单表单行）与 `updateFields`（单表单行、别名与拼音同语句）**不进事务**。
 
 ## 3. 数据模型（Room）
 
@@ -96,10 +97,13 @@
 **迁移 `MIGRATION_1_2`（三步，全在一个 `Migration` 内）**
 
 1. `ALTER TABLE location ADD COLUMN path TEXT NOT NULL DEFAULT ''`
-2. 用递归 CTE 回填：根节点 `path = '/' || id || '/'`，其余 `path = 父.path || id || '/'`
+2. 用递归 CTE 回填：根节点 `path = '/' || id || '/'`，其余 `path = 父.path || id || '/'`；
+   **回填语句必须写成 `COALESCE((SELECT tree.path FROM tree WHERE tree.id = location.id), '')`**
 3. `CREATE INDEX index_location_path ON location(path)`
 
-> **新建库不走迁移**：`version = 2` 的全新安装由 `SeedCallback.onCreate()` 一次性写入含 `path` 的默认位置树（`BuiltInData` 的字面量在写库前补全 `path` 字段）。**两条路径（迁移 / 新建）必须产出同一形态的 `path`**，由 androidTest 双向验证。
+> **第 2 步的 `COALESCE` 不是防御性写法，是必需的**（P1 实现期由 `androidTest` 的 `MigrationsTest` 实测发现）：递归 CTE 到不了的节点（脏数据成环 / 父级缺失）在 `tree` 里查不到，标量子查询于是返回 **NULL**；而 `path` 是 `NOT NULL`，把 NULL 写进去会直接抛 `not null constraint failed: location.path`，**整个迁移失败 = 升级用户开不了 App** —— 恰恰是本页「宁可降级也不能失败」取向要避免的。兜底成空串后，这类节点保留 `''` 由用户自行收拾，迁移照常完成。
+>
+> **新建库不走迁移**：`version = 2` 的全新安装由 `SeedCallback.onCreate()` 一次性写入含 `path` 的默认位置树（字面量取自 `BuiltInData.SEED_LOCATION_PATHS`）。**两条路径（迁移 / 新建）必须产出同一形态的 `path`**，由 `androidTest/MigrationsTest` 双向验证（升级库按回填结果、新建库按 `parent_id` 链独立推导）。
 
 ### 3.3 种子（与 P0 一致，不新增节点）
 
@@ -122,7 +126,7 @@
 
 | 操作 | `last_modified_at` | `last_confirmed_at` |
 |---|---|---|
-| **改分类 / 别名 / 备注 / 数量 / 去向备注** | 不动 | 不动 |
+| **改分类 / 别名 / 备注 / 数量** | 不动 | 不动 |
 | **改为「待归位」/ 从「待归位」归位** | **= now** | 不动 |
 | **标记 / 取消位置为临时** | 不动（位置侧操作） | — |
 | **按位置批量确认（含子层 N 件）** | 不动 | **= now（N 行同值）** |
@@ -161,7 +165,7 @@
 
 - **新建 3**：`ui/screen/itemedit/ItemEditScreen.kt` + `ItemEditViewModel.kt`、`ui/component/AliasEditor.kt`
 - **触及 12 个既有文件**：`data/local/dao/ItemDao.kt`（补丁式更新与含子层查询）、`data/repository/ItemRepository.kt` + `Impl`（`updateFields` 补丁式写入）、`domain/model/StoredItem.kt` / `ItemDetail.kt`（补 `aliases` / `quantity`）、`domain/search/SearchDoc.kt` + `SearchIndex.kt` + `SearchScorer.kt`（**别名参与检索**，与名称同档）、`ui/screen/itemdetail/ItemDetailScreen.kt` + `ItemDetailViewModel.kt`（引入「⋯更多」折叠区，P0 §8.1-14 的预告在此兑现）、`ui/navigation/ShounaRoute.kt` + `RouteHandler.kt`（+1 路由，「✏」与「⋯更多」均进入本页）
-- **子步骤** ① 补丁式写入（只写被改的字段，别名变更时**同事务重算** `pinyin_full` / `pinyin_initial`）；② 别名 chips 编辑（增删，上限与去重口径见 §8.1）；③ 数量输入（整数 ≥ 1，非法值不落库）；④ 分类选择（复用 P-ADD 的 chips 组件 + 分类管理页维护的列表）；⑤ 去向备注（仅 `gone` 时出现）；⑥ 详情页折叠区承载分类 / 别名 / 备注 / 数量 / 最后变动 / 待归位 / 移动入口
+- **子步骤** ① 补丁式写入（只写被改的字段；别名变更时**在同一条 `UPDATE` 内**一并重算 `pinyin_full` / `pinyin_initial`，因此不需要事务）；② 别名 chips 编辑（增删，上限与去重口径见 §8.1）；③ 数量输入（整数 ≥ 1，非法值不落库）；④ 分类选择（复用 P-ADD 的 chips 组件 + 分类管理页维护的列表）；⑤ 详情页折叠区承载分类 / 别名 / 备注 / 数量 / 最后变动 / 待归位 / 移动入口（折叠区是**入口**，字段编辑本身全落本页）
 - **验收** 改别名后搜别名能命中、改名后旧别名仍能命中；数量非整数 / 0 不可保存；改分类 / 别名 / 备注后详情页 `last_modified_at` **不变**；「待归位」与「归位」正确刷新 `last_modified_at`
 - **PRD 承接** FR-14（跳转落点）、别名 / 数量（`prd/11` Q3 / Q11）、`prd/08` §7.6 的 A-2
 
@@ -193,11 +197,22 @@ graph LR
 
 ## 5. 文件规模
 
-**新建 14**（P1-01 一 / P1-02 二 / P1-03 三 / P1-04 三 / P1-05 二 / P1-06 三）；**修改 31**；**删除 0**。
+**新建 18**；**修改 44**（代码侧，不含 `docs/`）；**删除 0**。
 
-> §4 各任务标的是「**该任务触及**的既有文件」；同一文件被多个任务复用时，§7 **只列一次**，因此 §7 是去重后的权威清单（**31 个**），§4 各任务数字之和大于 31。另有 `res/values/strings.xml` 的文案增补，不计入上表。
+| 新建 | 数量 | 清单 |
+|---|---|---|
+| 迁移 | 1 | `data/local/Migrations.kt` |
+| 组件 | 5 | `ui/component/` 的 `LocationMoveSheet` / `TemporaryMark` / `StatCard` / `AliasEditor` / `FilterChips` |
+| 页面 | 8 | `ui/screen/` 的 `stats` / `itemedit` / `category` / `settings`，各 `XxxScreen` + `XxxViewModel` |
+| schema | 1 | `app/schemas/com.dream.shouna.data.local.ShounaDatabase/2.json`（KSP 生成） |
+| 测试 | 3 | `CategoryRepositoryImplTest` / `ConfigRepositoryImplTest`（JVM 单测）、`MigrationsTest`（仪器测试） |
 
-> 工程量分布与 P0 相反：本次**主要成本在新建页面**（14 个里有 8 个是页面 / 组件），数据层只动 1 列。逐一清单见 §4 各任务，不另设重复的文件清单章。
+**修改 44** = 主源码与构建 **38**（含 `app/build.gradle.kts` 的 schema 资产挂载）+ **6** 个既有单测文件。
+
+> 与 §4 各任务标注的「新建 14 / 修改 31」的差额来自实现期新增：上面这 5 类里的后 4 类（schema / 测试 / 构建文件）以及 §7 原先**漏登的 4 个文件**（见 §7 表下补注）。
+> §4 各任务标的是「**该任务触及**的既有文件」；同一文件被多个任务复用时，§7 **只列一次**，因此 §7 是去重后的权威清单，§4 各任务数字之和大于它。
+
+> 工程量分布与 P0 相反：本次**主要成本在新建页面**（18 个里有 13 个是页面 / 组件 / 测试），数据层只动 1 列。逐一清单见 §4 各任务，不另设重复的文件清单章。
 
 ## 6. 依赖版本（无新增）
 
@@ -207,31 +222,43 @@ graph LR
 - `settings.gradle.kts` **不新增仓库源**；**不新增任何 `uses-permission`**。
 - 分类图标 / 颜色（`prd/08` §7.4 的可选字段）**本期不引入**——它需要新增资源与依赖取舍，属 P2 的 FR-34（分类分布）一并考虑。
 
-## 7. 与 P0 / F1 的接缝（触及的既有文件 = 31，去重清单）
+## 7. 与 P0 / F1 的接缝（触及的既有文件，去重清单）
 
-| P0 文件 | 本次改动 |
+| P0 / F1 文件 | 本次改动 |
 |---|---|
-| `data/local/ShounaDatabase.kt` | `version = 2` + `addMigrations(MIGRATION_1_2)` |
-| `data/local/entity/LocationEntity.kt` | 加 `path` 列 |
-| `data/local/dao/LocationDao.kt` | `path` 写读、子树前缀查询、移动 / 合并的批量更新 |
-| `data/local/dao/ItemDao.kt` | 含子层计数、`confirmByLocation`、补丁式字段更新、超期 / 待归位清单查询 |
-| `data/local/dao/CategoryDao.kt` | 由只读 → 增删改 |
-| `data/repository/LocationRepository.kt` / `Impl` | 加 `move` / `merge` / `setTemporary` / `observeCounts` |
-| `data/repository/ItemRepository.kt` / `Impl` | 加 `updateFields` / `confirmByLocation` / `findSimilar`；别名参与检索键派生 |
+| `data/local/ShounaDatabase.kt` | `version = 2` |
+| `di/DatabaseModule.kt` | `.addMigrations(Migrations.MIGRATION_1_2)` |
+| `data/local/entity/LocationEntity.kt` | 加 `path` 列（`defaultValue = "''"`）与 `index_location_path` |
+| `data/local/SeedCallback.kt` | 默认位置树改为逐列 INSERT、补 `path` |
+| `data/local/dao/LocationDao.kt` | `path` 写读、子树查询、移动 / 合并的批量更新、`setTemporary`、`observeUsableCount` |
+| `data/local/dao/ItemDao.kt` | 补丁式字段更新、含子层批量确认、超期 / 待归位清单、活跃计数、`putBack` / `moveItem` |
+| `data/local/dao/CategoryDao.kt` | 由只读 → 增删改（删只删非内置） |
+| `data/local/dao/ConfigDao.kt` | 加可观察读 `observe(key)` |
+| `data/repository/LocationRepository.kt` / `Impl` | 加 `move` / `merge` / `setTemporary` / `observeCounts` / `observeLocationCount` |
+| `data/repository/ItemRepository.kt` / `Impl` | 加 `updateFields`（`ItemFieldPatch`）/ `confirmByLocation` / `findSimilar` / `putBack` / `moveItem` / 三个流；别名参与检索键派生 |
 | `data/repository/CategoryRepository.kt` / `Impl` | 只读 → 可写 |
-| `data/memory/BuiltInData.kt` | 默认位置树写库前补 `path`（**不新增节点**） |
-| `util/LocationPath.kt` | 加 ID 序列路径的两个纯函数（名称路径派生不动） |
-| `domain/model/StoredItem.kt` / `ItemDetail.kt` | 补 `aliases` / `quantity` |
-| `domain/search/SearchDoc.kt` / `SearchIndex.kt` / `SearchScorer.kt` | 别名档位与筛选维度输入 |
-| `ui/navigation/ShounaRoute.kt` / `RouteHandler.kt` | +4 路由键 + 4 个 `goXxx` |
+| `data/repository/ConfigRepository.kt` / `Impl` | 加 `observeThresholdMonths` / `setThresholdMonths` |
+| `data/memory/BuiltInData.kt` | 加 `SEED_LOCATION_PATHS`（写库前置的 `path`，**不新增节点**） |
+| `util/LocationPath.kt` | 加 ID 序列路径的 `buildIdPath` / `isDescendantPath`（名称路径派生不动） |
+| `util/TimeUtil.kt` | `MILLIS_PER_MONTH` 提为公开常量（阈值换算与超期查询共用同一口径） |
+| `domain/model/StoredItem.kt` / `Category.kt` / `LocationTreeRow.kt` | 补 `aliases` / `quantity`；`isBuiltIn`；`subtreeItemCount` |
+| `domain/search/SearchDoc.kt` / `SearchScorer.kt` | 别名参与检索（与名称同档，`MatchType.NAME`） |
+| `ui/navigation/ShounaRoute.kt` / `RouteHandler.kt` | +4 路由键、+4 个 `goXxx`（合计 9 条路由 / 9 个动作） |
 | `ui/screen/home/HomeScreen.kt` | 「更多」折叠区由 1 项 → 3 项 |
 | `ui/screen/location/LocationBrowseScreen.kt` / `LocationBrowseViewModel.kt` | 移动 / 合并 / 临时标记 / 计数 / 批量确认 |
-| `ui/screen/itemdetail/ItemDetailScreen.kt` / `ItemDetailViewModel.kt` | 引入「⋯更多」折叠区 |
-| `ui/screen/search/SearchScreen.kt` / `SearchViewModel.kt` | 筛选 chips |
+| `ui/screen/itemdetail/ItemDetailScreen.kt` / `ItemDetailViewModel.kt` | 引入「⋯更多」折叠区（待归位 ↔ 归位 / 移动到…） |
+| `ui/screen/search/SearchScreen.kt` / `SearchViewModel.kt` | FR-22 三维筛选 chips |
 | `ui/screen/add/QuickAddScreen.kt` / `QuickAddViewModel.kt` | FR-14 非阻塞提示 |
-| `ui/component/{LocationTreeItem, CategoryChips}.kt` | 临时标记 / 动态分类列表 |
+| `ui/component/LocationTreeItem.kt` | 临时标记 + 「本层 / 含子层」两个计数 |
+| `ui/component/CategoryChips.kt` | 消费 `observeCategories` 的动态列表（不再读内置常量） |
+| `ui/component/LocationPickerSheet.kt` | 加 `allowCreate` 开关（迁移 / 归位 / 移动目标传 `false`） |
+| `app/build.gradle.kts` | `androidTest` 的 schema 资产挂载（供 `MigrationTestHelper` 读 v1 / v2） |
+| 既有单测 6 个文件 | 只加不删：`FakeDaos` / `ItemRepositoryImplTest` / `LocationRepositoryImplTest` / `SearchScorerTest` / `LocationPathTest` / `BuiltInDataTest` |
 
-> **反向不动**：`ui/theme/*`（永久浅色 + 字号锁定）、`MainActivity.kt`（`enableEdgeToEdge` 与容器级避让）、`ShounaApplication.kt`、`di/*`（无新绑定）、`util/{TextNormalizer, PinyinUtil, TimeUtil, IdGenerator}.kt`、`data/local/TransactionRunner.kt`、P0 的既有单测断言（只加不删）。
+> **补注 · 原先漏登的 4 个既有文件**：`di/DatabaseModule.kt`、`data/local/SeedCallback.kt`、`domain/model/LocationTreeRow.kt`、`domain/model/Category.kt`。§4 各任务未列出，但确实是既有文件被改，已补入上表。
+> **补注 · 新建的测试文件不算接缝**：`CategoryRepositoryImplTest` / `ConfigRepositoryImplTest` / `MigrationsTest` 属「新建」，见 §5。
+
+> **反向不动**：`ui/theme/*`（永久浅色 + 字号锁定）、`MainActivity.kt`（`enableEdgeToEdge` 与容器级避让）、`ShounaApplication.kt`、`di/{AppModule, RepositoryModule}.kt`（无新绑定）、`util/{TextNormalizer, PinyinUtil, IdGenerator}.kt`、`data/local/{TransactionRunner, Converters}.kt`、`domain/search/SearchIndex.kt`（筛选与别名都走「先检索后过滤 / 同档判定」，索引本身不动）、P0 的既有单测**断言**（只加不删）。
 
 ## 8. 本次裁决与落差登记
 
@@ -273,7 +300,7 @@ graph LR
 | 项 | 口径 |
 |---|---|
 | 构建 | `:app:assembleDebug` + `:app:testDebugUnitTest` 成功；androidTest 通过；`app/schemas/…/2.json` 生成 |
-| 迁移 | 存量库（`version 1`）升级后 `location.path` 与 `parent_id` 链一致、无空值；新建库形态等价；**升级过程不丢数据** |
+| 迁移 | 存量库（`version 1`）升级后 `location.path` 与 `parent_id` 链一致、无空值；新建库形态等价；**升级过程不丢数据**；递归到不了的脏数据（成环）**保留空串、不阻断升级**。上列四条由 `androidTest/MigrationsTest` 的 3 条用例覆盖 |
 | FR-04 | 移动子树后子孙路径与物品归属正确；合并后无孤儿；移入自身子树被拦 |
 | FR-06 / 21 | 位置可标临时；树行展示「本层 N 件 / 含子层共 M 件」且与下钻列表一致 |
 | FR-22 | 三维筛选可叠加、可清空；位置筛选含子层 |

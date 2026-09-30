@@ -67,7 +67,11 @@ object LocationPath {
      */
     fun buildIdPath(selfId: String, parentPath: String): String {
         val prefix = when {
-            parentPath.isEmpty() -> ""
+            // 根级（父路径为空串）：前缀就是分隔符本身，产出 `/自身id/`。
+            // **不能**退化成空串 —— 那样根节点会得到 `自身id/`（少了前导 `/`），
+            // 与 `MIGRATION_1_2` 的 `'/' || id || '/'` 形态不一致，正是 §3.2 要求避免的
+            // 「新装库与升级库长得不一样」。
+            parentPath.isEmpty() -> ID_PATH_SEPARATOR
             parentPath.endsWith(ID_PATH_SEPARATOR) -> parentPath
             else -> parentPath + ID_PATH_SEPARATOR
         }

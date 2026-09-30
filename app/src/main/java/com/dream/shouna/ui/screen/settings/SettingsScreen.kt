@@ -1,11 +1,14 @@
 package com.dream.shouna.ui.screen.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,67 +38,81 @@ fun SettingsRoute() {
 
     SettingsScreen(
         uiState = uiState,
+        onThresholdSelected = viewModel::onThresholdSelected,
         onCategoryManageClick = { navController.goCategoryManage() },
         onBack = { navController.popBack() },
     )
 }
 
 /**
- * P-SETTINGS 设置页（FR-47）—— **骨架**。
+ * P-SETTINGS 设置页（FR-47）：超期阈值选择器 + 分类管理入口 + 隐私说明 + 关于。
  *
- * 当前渲染：标题 + 四块静态内容（阈值 / 分类管理入口 / 隐私说明 / 关于）+ 返回。
- * 唯一**可用**的交互是「分类管理」入口 —— 它只做导航，不经过任何 TODO 桩，
- * 因此骨架期就能验证 FR-44 的路由可达。
+ * 【阈值选择器】三档 chip，选中态 = 当前阈值；未载入时**一档都不选中**（不预选一个猜的值，
+ * 用户看到的高亮就是库里的真值）。改档后写入即刻生效：`StatsViewModel` 订阅的是同一条配置流，
+ * 返回栈上的统计页 C-4 清单会随之变化，不需要重建页面。
  *
- * 隐私说明是**固定文案**（不是待实现项），在此就写明：数据仅本机、不可迁移、卸载即永久丢失
+ * 【隐私说明是固定文案】（不是待实现项）：数据仅本机、不可迁移、卸载即永久丢失
  * （P1 §8.1-14 的硬要求；`allowBackup = false` 见 `AndroidManifest.xml`）。
  *
- * 未渲染：阈值三档的**可点**选择器（保护 TODO 桩）、关于的版本号读取、V2 的 AI 设置节
- * （`prd/14` `V2-SEAM-05`：只留文档级位置，连灰置入口都不给）。
+ * 未含：V2 的 AI 设置节（`prd/14` `V2-SEAM-05`：只留文档级位置，连灰置入口都不给）。
  */
 @Composable
 fun SettingsScreen(
     uiState: SettingsUiState,
+    onThresholdSelected: (Int) -> Unit,
     onCategoryManageClick: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val options = SettingsViewModel.THRESHOLD_OPTIONS.joinToString(" / ")
-
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
     ) {
-        Text(
-            text = "设置",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onBack) { Text(text = "返回") }
+            Text(
+                text = "设置",
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // ① 超期阈值（FR-29 / 47）。骨架期只展示档位，不含可点选择器。
+        // ① 超期阈值（FR-29 / 47）：三档单选，改后 C-4 清单即时变化。
         Text(
-            text = "超期提醒阈值：$options 个月",
+            text = "超期提醒阈值",
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = "当前：${uiState.thresholdMonths?.let { "$it 个月" } ?: "未载入"}（P1-06 待实现）",
+            text = "超过这个时间没有确认过的物品，会在「归纳统计」里被列出来。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
         )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 6.dp),
+        ) {
+            SettingsViewModel.THRESHOLD_OPTIONS.forEach { months ->
+                FilterChip(
+                    // 未载入（thresholdMonths = null）时无一选中：高亮必须与库里的真值一致。
+                    selected = uiState.thresholdMonths == months,
+                    onClick = { onThresholdSelected(months) },
+                    label = { Text(text = "$months 个月") },
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // ② 分类管理入口（FR-44）。骨架期唯一可用的交互：纯导航。
+        // ② 分类管理入口（FR-44）。
         TextButton(onClick = onCategoryManageClick) {
             Text(text = "分类管理")
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // ③ 隐私说明（固定文案）。
         Text(
@@ -111,7 +128,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // ④ 关于。
         Text(
@@ -120,16 +137,10 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = "收纳助手 · 本地离线使用（版本号读取待 P1-06 接入）",
+            text = "收纳助手 · 完全离线运行",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
         )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        TextButton(onClick = onBack) {
-            Text(text = "返回")
-        }
     }
 }

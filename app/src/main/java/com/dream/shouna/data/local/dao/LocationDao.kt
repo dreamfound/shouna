@@ -63,4 +63,51 @@ interface LocationDao {
 
     @Query("DELETE FROM location WHERE id = :id")
     suspend fun delete(id: String): Int
+
+    // --- P1-01 / P1-02（FR-04 / 06 / 21）：`path` 读改与子树范围查询 ------------------------
+
+    /**
+     * P1-02（FR-04）：移动单节点 —— 把 `parent_id` 与 `path` **一条语句**改写。
+     *
+     * 之所以两列同写而不是分两条：`path` 与 `parent_id` 必须恒一致（P1 §3.4-7），
+     * 分成两条语句就会存在「父已改、路径未改」的中间态，移动途中被打断即产生脏路径。
+     */
+    @Query("UPDATE location SET parent_id = :parentId, path = :path WHERE id = :id")
+    suspend fun updateParentAndPath(id: String, parentId: String?, path: String): Int
+
+    /** P1-02（FR-04）：子树内逐行重写 `path`（移动后子孙路径前缀整体换掉）。 */
+    @Query("UPDATE location SET path = :path WHERE id = :id")
+    suspend fun updatePath(id: String, path: String): Int
+
+    /**
+     * P1-01 / P1-02：**子树范围查询**（含自身）。
+     *
+     * 必须写成**区间**（`path >= :prefix AND path < :prefix || char(0xFFFF)`）而不是
+     * `LIKE :prefix || '%'` —— 后者是无法静态提取前缀的表达式形态，SQLite 不会走
+     * `index_location_path`（`LocationEntity` / `Migrations` 的注释记了同一条实测结论）。
+     */
+    @Query(
+        "SELECT * FROM location WHERE path >= :prefix AND path < :prefix || char(0xFFFF)",
+    )
+    suspend fun subtreeOf(prefix: String): List<LocationEntity>
+
+    /**
+     * P1-02（FR-04）：**子孙**（不含自身）—— 移动子树时按旧前缀逐行重写 `path` 用。
+     */
+    @Query(
+        "SELECT * FROM location WHERE path >= :prefix AND path < :prefix || char(0xFFFF) " +
+            "AND id != :excludeId",
+    )
+    suspend fun descendantsOf(prefix: String, excludeId: String): List<LocationEntity>
+
+    /** P1-02（FR-06）：标记 / 取消临时位置（位置侧操作，不碰任何物品时间戳，P1 §3.5）。 */
+    @Query("UPDATE location SET is_temporary = :flag WHERE id = :id")
+    suspend fun setTemporary(id: String, flag: Boolean): Int
+
+    /**
+     * P1-03（C-1）：**非内置**位置总数 —— 哨兵是系统保留位，不计入「位置总数」
+     * （否则用户看到的数字比自己建的多 1，解释不通；§2-9 哨兵不外露）。
+     */
+    @Query("SELECT COUNT(*) FROM location WHERE is_built_in = 0")
+    fun observeUsableCount(): Flow<Int>
 }

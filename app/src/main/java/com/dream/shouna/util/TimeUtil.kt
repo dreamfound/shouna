@@ -9,7 +9,8 @@ import javax.inject.Singleton
  * 时间工具（ARCHITECTURE §0 / ARCHITECTURE-P0 §3.5）：core library desugaring + `java.time`；
  * 模型内一律 Long epoch millis。
  *
- * 时间戳矩阵（§3.5）：新建物品写 [nowMillis]；点「还在」只写 `lastConfirmedAt`；
+ * 时间戳矩阵（§3.5）：**新建物品三个时间列同取一次 [nowMillis]**（录入即一次确认，
+ * 2026-09-30 修订，原为 `lastConfirmedAt` 保持 NULL）；点「还在」只写 `lastConfirmedAt`；
  * 标记「不在了」/ 恢复 / 移动**只写 `lastModifiedAt`**；改名 / 改分类 / 改备注都不动时间。
  *
  * P0-03 新增： [relativeText]（「最后变动」复用同一分档）、[isOverdue]（FR-27 超期判定）。
@@ -60,7 +61,7 @@ class TimeUtil @Inject constructor() {
      */
     fun isOverdue(lastConfirmedAt: Long?, thresholdMonths: Int, now: Long = nowMillis()): Boolean {
         if (lastConfirmedAt == null) return true
-        val threshold = now - thresholdMonths * DAYS_PER_MONTH * MILLIS_PER_DAY
+        val threshold = now - thresholdMonths.toLong() * MILLIS_PER_MONTH
         return lastConfirmedAt < threshold
     }
 
@@ -76,5 +77,17 @@ class TimeUtil @Inject constructor() {
         private const val DAYS_PER_MONTH = 30L
         private const val DAYS_PER_YEAR = 365L
         private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
+
+        /**
+         * 一个「月」的毫秒数（[DAYS_PER_MONTH] 天）。
+         *
+         * 公开而非私有：[isOverdue] 与 SQL 侧的超期清单（`ItemDao.observeOverdue`）必须用**同一个**
+         * 换算。后者在 SQL 里比较，阈值只能由 Kotlin 算好传进去；若两处各写一份折算，
+         * 「搜索结果标了 ⚠ 但统计清单没有它」这类不一致就会悄悄出现。
+         *
+         * 【声明位置】必须排在被它引用的私有常量**之后** —— `object` 与伴生对象的属性按文本顺序
+         * 初始化，`const val` 也照此解析，前向引用会直接编译失败。
+         */
+        const val MILLIS_PER_MONTH: Long = DAYS_PER_MONTH * MILLIS_PER_DAY
     }
 }
