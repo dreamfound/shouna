@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * `recent_search` 表（ARCHITECTURE-P0 §3.1）：FR-23 最近搜索词，**仅搜索页空态**展示。
+ * `recent_search` 表（docs/code-map/02-数据与领域.md）：FR-23 最近搜索词，**仅搜索页空态**展示。
  *
  * 去重口径 = `normalized_query` 唯一索引（归一化后同词只留一条，取最近时间）；
  * 上限 20 条由 DAO 的 `trim` 维护，不在表上做约束。

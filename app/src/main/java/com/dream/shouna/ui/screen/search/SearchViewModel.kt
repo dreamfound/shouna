@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * FR-19 输入即搜 + FR-20 拼音 + FR-23 最近搜索词（ARCHITECTURE §4 F1-04 ③ / P0-04 ⑤⑥）：
+ * FR-19 输入即搜 + FR-20 拼音 + FR-23 最近搜索词（docs/code-map/04-流程链路.md）：
  * `debounce(200ms)` + `collectLatest` + `Dispatchers.Default`；索引懒构建，冷启动不阻塞。
  *
  * P1-06 ① 起叠加 **FR-22 三维筛选**（分类 / 位置 / 状态）：筛选与「输入即搜」正交
@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  * （守 `实现约束.md` §4-5 的原始裁定「筛选不进检索判定」，但控件本期已进搜索页）。
  *
  * 结果行的**展示信息**（位置路径 · 最后确认 + FR-27 超期标记）在本层组装：Screen 层不持有
- * [TimeUtil] / [ConfigRepository]（ARCHITECTURE §2）。
+ * [TimeUtil] / [ConfigRepository]（docs/实现约束.md）。
  *
  * 被调用方：SearchRoute（hiltViewModel + setInitialQuery / onQueryChange）
  */

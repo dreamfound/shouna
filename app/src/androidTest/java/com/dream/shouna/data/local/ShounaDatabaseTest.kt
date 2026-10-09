@@ -21,7 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P0-01 的**仪器测试**（ARCHITECTURE-P0 §8.1-13：Room 的验证走 androidTest）：
+ * P0-01 的**仪器测试**（docs/code-map/05-改动须知.md：Room 的验证走 androidTest）：
  * 种子完整性、外键取向（RESTRICT / SET NULL）、计数用的原始 SQL、`recent_search` 的
  * REPLACE 去重与裁剪。
  *

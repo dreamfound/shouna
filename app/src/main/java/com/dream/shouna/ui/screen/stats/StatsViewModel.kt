@@ -402,7 +402,7 @@ data class StatsUiState(
 
 /** 页内两态。 */
 enum class StatsMode {
-    /** C-1 两块数字（`ARCHITECTURE-P1` §8.1-8：只出 2 块）。 */
+    /** C-1 两块数字（`docs/code-map/02-数据与领域.md`-8：只出 2 块）。 */
     CARDS,
 
     /** C-4 / C-5 / ALL 的清单。 */

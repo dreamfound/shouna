@@ -3,7 +3,7 @@ package com.dream.shouna.domain.search
 import com.dream.shouna.util.TextNormalizer
 
 /**
- * 打分与高亮（ARCHITECTURE-P0 §4 P0-04 ④）。纯函数，无 Android 依赖。
+ * 打分与高亮（docs/code-map/04-流程链路.md）。纯函数，无 Android 依赖。
  *
  * 命中优先级 = 方法内的判定顺序 = **名称 → 拼音 → 位置 → 分类**：
  * 命中即返回，不继续往下看。这样一条记录只会归入权重最高的那一档。

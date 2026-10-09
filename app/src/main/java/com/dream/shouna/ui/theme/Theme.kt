@@ -19,7 +19,7 @@ private val LightColorScheme = lightColorScheme(
 /**
  * App-wide Material 3 theme.
  *
- * F1-01 永久浅色 + 固定字号（ARCHITECTURE §7.2）：
+ * F1-01 永久浅色 + 固定字号（docs/实现约束.md）：
  * - 无 `darkTheme` 参数、无深色分支；动态取色锁 `dynamicLightColorScheme`，
  *   系统切深色后 UI 保持浅色（FR-48 / NFR-16 撤销）。
  * - `LocalDensity` 以 `fontScale = 1f` 覆盖，系统字号 200% 下 app 内文字尺寸不变（NFR-13 撤销）。

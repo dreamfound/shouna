@@ -3,7 +3,7 @@ package com.dream.shouna.domain.search
 import com.dream.shouna.domain.model.ItemStatus
 
 /**
- * 索引文档（ARCHITECTURE-P0 §4 P0-04 ② + P1-04）：由 `item` + `category` + `location` 三表联合派生。
+ * 索引文档（docs/code-map/04-流程链路.md）：由 `item` + `category` + `location` 三表联合派生。
  *
  * 检索维度（权重从高到低，见 [SearchConfig]）：
  * 名称子串（**含别名，同档**）→ **拼音全拼 / 首字母** → 位置路径（含位置名拼音）→ 分类名。

@@ -67,7 +67,7 @@ class ItemRepositoryImplTest {
         )
 
         listOf(uncategorized, categorized).forEach { item ->
-            // 位置必填（ARCHITECTURE-P0 §0）：落库的就是调用方给的真实位置，不再是哨兵。
+            // 位置必填（docs/PRD.md）：落库的就是调用方给的真实位置，不再是哨兵。
             assertThat(item.locationId).isEqualTo(BEDROOM_ID)
             assertThat(item.id.isNotBlank()).isTrue()
             assertThat(item.status).isEqualTo(ItemStatus.IN_STORAGE)

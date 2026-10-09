@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * 迁移链（ARCHITECTURE-P1 §3.2 起）：`1 → 2`（`location.path`）、`2 → 3`（`item.photo_path`）。
+ * 迁移链（docs/code-map/02-数据与领域.md 起）：`1 → 2`（`location.path`）、`2 → 3`（`item.photo_path`）。
  *
  * 两条迁移都遵守同一条底线：**不启用** `fallbackToDestructiveMigration` —— 那一句会让所有
  * 升级用户数据全丢，与「数据仅本机、卸载即永久丢失」的 FR-41 正面冲突（P1 §8.1-1）。

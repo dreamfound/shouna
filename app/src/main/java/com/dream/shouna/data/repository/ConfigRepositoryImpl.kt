@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /**
- * `app_config` 表实现（ARCHITECTURE-P0 §3.1 + P1-06）。
+ * `app_config` 表实现（docs/code-map/02-数据与领域.md）。
  * 种子写入 `threshold_months = 6`；解析失败（脏数据）时回落到默认值，不让一个坏值阻断详情页。
  *
  * 被调用方：`SearchViewModel` / `ItemDetailViewModel` / `LocationBrowseViewModel` /

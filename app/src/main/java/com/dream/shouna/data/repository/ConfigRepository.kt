@@ -4,7 +4,7 @@ import com.dream.shouna.data.local.dao.ConfigDao
 import kotlinx.coroutines.flow.Flow
 
 /**
- * 应用配置读写（ARCHITECTURE-P0 §3.1 + P1 §4 P1-06）：消费者是 FR-27 / FR-29 的超期阈值。
+ * 应用配置读写（docs/code-map/02-数据与领域.md）：消费者是 FR-27 / FR-29 的超期阈值。
  *
  * 之所以做成仓库而不是直接注入 DAO：UI 层不该知道配置存在哪张表。
  * **P1-06 起加写方法与可观察读**（设置页），调用方不变。

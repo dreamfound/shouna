@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -21,30 +23,42 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dream.shouna.R
+import com.dream.shouna.domain.ai.AiState
 import com.dream.shouna.domain.model.Category
 import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
+import com.dream.shouna.ui.component.AiStatusSection
 import com.dream.shouna.ui.component.CategoryChips
 import com.dream.shouna.ui.component.LocationPickerSheet
 import com.dream.shouna.ui.component.PhotoInputRow
 import com.dream.shouna.ui.component.VoiceInputButton
 import com.dream.shouna.ui.component.VoiceInputDialog
+import com.dream.shouna.ui.component.text
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
+import com.dream.shouna.util.AiImageEncoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * 有状态包装层：唯一职责 = `hiltViewModel()` 取 ViewModel 后把 UiState 下传（ARCHITECTURE §2）。
+ * 有状态包装层：唯一职责 = `hiltViewModel()` 取 ViewModel 后把 UiState 下传（docs/实现约束.md）。
  *
  * [initialLocationId] = 路由参数（P-BROWSE 的「＋ 往这里记一件」带过来的当前层；首页进来为 null）。
  * 它**只在进页时用一次**，故交给 VM 的 [QuickAddViewModel.initialize]（内部自带防重入守卫）——
@@ -87,6 +101,10 @@ fun QuickAddRoute(initialLocationId: String?) {
         onOpenLocationPicker = viewModel::onOpenLocationPicker,
         onRequestVoice = viewModel::onRequestVoice,
         onPhotoChanged = viewModel::onPhotoChanged,
+        onAiParse = viewModel::onAiParse,
+        onAiToggle = viewModel::onAiToggle,
+        onAiApply = viewModel::onAiApply,
+        onAiDismiss = viewModel::onAiDismiss,
     )
 
     QuickAddLocationPicker(
@@ -110,11 +128,16 @@ fun QuickAddRoute(initialLocationId: String?) {
  * 无状态页：**位置条（必填）** + 名称（自动聚焦）+ 分类 chips + 折叠备注 + 保存并继续 + 计数器。
  *
  * 与 F1 的唯一界面差别 = 位置条。位置未选时保存按钮禁用并给出原因文案
- * —— 这是「所有物品必须有位置」在 UI 上的唯一表达（ARCHITECTURE-P0 §0）。
+ * —— 这是「所有物品必须有位置」在 UI 上的唯一表达（docs/PRD.md）。
  *
  * 保存成功后**位置条不清空**（VM 保留位置），所以连续录入只需重复「输名称 → 保存」。
  *
  * 位置树与弹层开关**不在本页参数里** —— 弹层开合不该把整页拖进重组，见 [QuickAddLocationPicker]。
+ *
+ * 【V2 AI 入口（AI-02）】名称框尾部比 🎤 多一个 `AI` 按钮（开关开着才出现）；按下后卡片在
+ * **本页内**渲染，不是弹层（守 `实现约束.md` §4-4「连续录入期间不弹对话框」）。照片通道的
+ * base64 **在本层编码**（[AiImageEncoder]）再交给 VM —— 本工程文件 IO 一律留在 Compose 层，
+ * VM 不持有 `Context`（见 `QuickAddViewModel` 类注释）。
  */
 @Composable
 fun QuickAddScreen(
@@ -128,10 +151,16 @@ fun QuickAddScreen(
     onOpenLocationPicker: () -> Unit,
     onRequestVoice: (VoiceField) -> Unit,
     onPhotoChanged: (String?) -> Unit,
+    onAiParse: (String?) -> Unit,
+    onAiToggle: (Int) -> Unit,
+    onAiApply: () -> Unit,
+    onAiDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var noteExpanded by rememberSaveable { mutableStateOf(false) }
 
     val hasLocation = uiState.selectedLocationId != null
@@ -183,8 +212,32 @@ fun QuickAddScreen(
                 onDone = { keyboard?.hide() },
             ),
             // FR-18：尾部语音按钮（点击开弹窗，长按才录音 —— 见 VoiceInputDialog）。
+            // V2 AI：同位置再挂一个 AI 按钮（开关开着才出现）—— §3.4「零新增输入框、零新增弹层」。
             trailingIcon = {
-                VoiceInputButton(onClick = { onRequestVoice(VoiceField.NAME) })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    VoiceInputButton(onClick = { onRequestVoice(VoiceField.NAME) })
+                    if (uiState.aiEnabled) {
+                        AiParseButton(
+                            parsing = uiState.aiState is AiState.Parsing,
+                            onClick = {
+                                val photoName = uiState.photoName
+                                if (photoName == null) {
+                                    // 文字通道：不需要文件 IO，直接交出去。
+                                    onAiParse(null)
+                                } else {
+                                    // 照片通道：编码（读文件 + 缩放 + JPEG + base64）是阻塞 IO，
+                                    // 必须在 IO 线程；编码结果为空串 / null 时由 VM 给「照片读取失败」。
+                                    scope.launch {
+                                        val base64 = withContext(Dispatchers.IO) {
+                                            AiImageEncoder.encodeBase64(context, photoName)
+                                        }
+                                        onAiParse(base64)
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -210,6 +263,14 @@ fun QuickAddScreen(
                 }
             }
         }
+
+        // V2 AI：进度 / 失败提示 / 确认卡，全部落在**本页之内**（不是弹层）。
+        AiStatusSection(
+            aiState = uiState.aiState,
+            onToggle = onAiToggle,
+            onApply = onAiApply,
+            onDismiss = onAiDismiss,
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -339,3 +400,39 @@ private fun QuickAddVoiceDialog(
         onDismiss = onDismiss,
     )
 }
+
+/**
+ * 名称框尾部的 AI 按钮（`docs/code-map/02-数据与领域.md`：与 🎤 **同位置、同形态**）。
+ *
+ * 【为什么用文字符号而不是矢量图标】与 [VoiceInputButton] 同一理由：AI 类图标要引
+ * `material-icons-extended`，为一个图标加一个依赖不划算；本工程既有界面也是这个路子。
+ *
+ * 【解析中为什么只是换成「…」而不是转圈】`CircularProgressIndicator` 会带来一个持续的动画帧源
+ * —— 而录入页是本工程对首帧成本最敏感的一页（实测新结构冷首帧 400~700ms）。一个静态省略号
+ * 既表达了「在跑」，又不引入任何额外帧。
+ */
+@Composable
+private fun AiParseButton(
+    parsing: Boolean,
+    onClick: () -> Unit,
+) {
+    IconButton(
+        onClick = onClick,
+        // 解析中不可重复触发：第二次点击只会命中缓存 / 再排一次队，对用户毫无意义。
+        enabled = !parsing,
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { contentDescription = "AI 识别" },
+    ) {
+        Text(
+            text = if (parsing) "…" else "AI",
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+}
+
+// AI 状态区（进度 / 失败 / 确认卡）已移到 `ui/component/AiStatusSection.kt` —— 首页也要同一段。
+
+
+// 失败原因 → 文案的映射已移到 `ui/component/AiFailText.kt`（首页也要同一套文案）。
+

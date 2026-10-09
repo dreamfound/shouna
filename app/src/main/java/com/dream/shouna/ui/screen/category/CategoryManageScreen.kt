@@ -33,7 +33,7 @@ import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.popBack
 
 /**
- * 有状态包装层（ARCHITECTURE §2）。二次确认的态在 ViewModel（[CategoryManageViewModel.pendingDeleteId]），
+ * 有状态包装层（docs/实现约束.md）。二次确认的态在 ViewModel（[CategoryManageViewModel.pendingDeleteId]），
  * 页面只负责渲染，避免「对话框开着但状态已变」这类两边各存一份的问题。
  *
  * 删除对话框**与本层平级**下发、不经过 [CategoryManageScreen]（见 [CategoryDeleteDialog]）：

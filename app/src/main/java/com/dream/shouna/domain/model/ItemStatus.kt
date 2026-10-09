@@ -2,7 +2,7 @@ package com.dream.shouna.domain.model
 
 /**
  * 物品三态。稳定字符串 code（非 `enum.name`），F1 只产生 [IN_STORAGE]，
- * 其余两态仅定义、不产生、无切换入口（ARCHITECTURE §3.5）。
+ * 其余两态仅定义、不产生、无切换入口（docs/code-map/02-数据与领域.md）。
  */
 enum class ItemStatus(
     val code: String,

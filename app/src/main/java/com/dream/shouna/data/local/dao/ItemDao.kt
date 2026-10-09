@@ -10,7 +10,7 @@ import com.dream.shouna.domain.model.ItemStatus
 import kotlinx.coroutines.flow.Flow
 
 /**
- * `item` 表读写（ARCHITECTURE-P0 §2「读路径走 Flow、跨表写走单事务」）。
+ * `item` 表读写（docs/实现约束.md §2「读路径走 Flow、跨表写走单事务」）。
  *
  * 更新方法一律返回受影响行数 `Int`：仓库层据此判断命中与否，**不用「先查再写」**（避免竞态）。
  */

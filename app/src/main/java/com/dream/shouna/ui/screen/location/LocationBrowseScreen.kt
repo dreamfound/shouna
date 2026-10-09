@@ -48,7 +48,7 @@ import com.dream.shouna.ui.navigation.goQuickAdd
 import com.dream.shouna.ui.navigation.popBack
 
 /**
- * 有状态包装层（ARCHITECTURE §2）：取 ViewModel、把 UiState 下传；导航动作在此组装。
+ * 有状态包装层（docs/实现约束.md）：取 ViewModel、把 UiState 下传；导航动作在此组装。
  */
 @Composable
 fun LocationBrowseRoute(locationId: String?) {
@@ -87,7 +87,7 @@ fun LocationBrowseRoute(locationId: String?) {
  * 【新增入口的定位】`prd/07` §6.1 给 P-BROWSE 的职责里本就写着「批量录入入口」、§6.2 的跳转图
  * 亦有一条 `BROWSE --> ADD`；入口长期缺失（功能未实现，非入口被藏）。本次补齐：点它进 P-ADD，
  * **位置条预选当前这一层** —— 这正是「打开一个箱子，往里连续记东西」的主路径。
- * 只给非根级：根级不是一个位置，位置条无处可预填（位置必填口径见 ARCHITECTURE-P0 §0）。
+ * 只给非根级：根级不是一个位置，位置条无处可预填（位置必填口径见 docs/PRD.md）。
  *
  * 【决策】删除对话框把两档写在同一处：「标记不在了」直接执行（不需要选目标），
  * 「迁移物品到…」再开一层选择弹层选目标 —— 因为 `item.location_id` 是 `NOT NULL`，

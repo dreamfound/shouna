@@ -4,7 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 /**
- * F1-02 单测 ②：哨兵唯一性 + 内置分类 8 条且 id 不重复（ARCHITECTURE §3.4，纯 JVM）。
+ * F1-02 单测 ②：哨兵唯一性 + 内置分类 8 条且 id 不重复（docs/code-map/02-数据与领域.md，纯 JVM）。
  *
  * 被测调用：
  *   BuiltInData.BUILT_IN_LOCATIONS / UNSPECIFIED_LOCATION        —— 哨兵唯一性

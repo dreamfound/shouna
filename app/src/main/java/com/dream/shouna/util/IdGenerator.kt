@@ -5,7 +5,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * id 生成（ARCHITECTURE §3.2）：`IdGenerator.newId()`。
+ * id 生成（docs/code-map/02-数据与领域.md）：`IdGenerator.newId()`。
  *
  * 被调用方：`ItemRepositoryImpl.createItemQuick` → `StoredItem.id`
  */

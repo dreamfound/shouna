@@ -8,7 +8,7 @@ import com.dream.shouna.data.local.entity.LocationEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
- * `location` 表读写（ARCHITECTURE-P0 §2）。
+ * `location` 表读写（docs/实现约束.md）。
  *
  * `parent_id IS :parentId` 用 SQLite 的 `IS` 运算符，**对 NULL 也成立**（`= NULL` 恒假），
  * 这样同一份查询同时服务「取根级（null）」与「取某节点子级」。

@@ -31,7 +31,7 @@ import com.dream.shouna.ui.navigation.goItemDetail
 import com.dream.shouna.ui.navigation.popBack
 
 /**
- * 有状态包装层（ARCHITECTURE §2）：取 ViewModel、把 UiState 下传；导航动作在此组装。
+ * 有状态包装层（docs/实现约束.md）：取 ViewModel、把 UiState 下传；导航动作在此组装。
  */
 @Composable
 fun SearchRoute(initialQuery: String?) {

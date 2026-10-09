@@ -20,7 +20,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * 持久化装配（ARCHITECTURE-P0 §2 + P1 §3.2）：唯一 `ShounaDatabase` 实例 + 5 个 DAO。
+ * 持久化装配（docs/code-map/02-数据与领域.md）：唯一 `ShounaDatabase` 实例 + 5 个 DAO。
  *
  * `addCallback(SeedCallback())` 只在**数据库首次创建**时触发（`onCreate`），
  * 已存在的库不会重复写入种子。

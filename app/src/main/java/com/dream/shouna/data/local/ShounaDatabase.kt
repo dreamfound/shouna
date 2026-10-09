@@ -15,7 +15,7 @@ import com.dream.shouna.data.local.entity.LocationEntity
 import com.dream.shouna.data.local.entity.RecentSearchEntity
 
 /**
- * 本地数据库（ARCHITECTURE-P0 §3 + P1 §3.2）：**5 张表**、`version = 3`、导出 schema。
+ * 本地数据库（docs/code-map/02-数据与领域.md）：**5 张表**、`version = 3`、导出 schema。
  *
  * 建库即种子：首次创建由 [SeedCallback] 写入默认位置树 6 节点 + 哨兵 + 8 分类 + 超期阈值
  * （`exportSchema = true` → 导出物见 `app/schemas/com.dream.shouna.data.local.ShounaDatabase/`，

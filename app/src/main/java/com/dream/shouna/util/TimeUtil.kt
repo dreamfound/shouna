@@ -6,7 +6,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 时间工具（ARCHITECTURE §0 / ARCHITECTURE-P0 §3.5）：core library desugaring + `java.time`；
+ * 时间工具（docs/code-map/03-装配与构建.md / docs/code-map/02-数据与领域.md）：core library desugaring + `java.time`；
  * 模型内一律 Long epoch millis。
  *
  * 时间戳矩阵（§3.5）：**新建物品三个时间列同取一次 [nowMillis]**（录入即一次确认，
@@ -33,7 +33,7 @@ class TimeUtil @Inject constructor() {
     /**
      * 纯相对短语（**不带前缀**），供「最后确认」与「最后变动」共用。
      *
-     * 分档（常量兜底，ARCHITECTURE §7.3 未钉死取值）：
+     * 分档（常量兜底，docs/code-map/02-数据与领域.md 未钉死取值）：
      * <1 分钟「刚刚」／<1 小时「N 分钟前」／<24 小时「N 小时前」／
      * <30 天「N 天前」／<12 个月「N 个月前」／其余「N 年前」。
      */

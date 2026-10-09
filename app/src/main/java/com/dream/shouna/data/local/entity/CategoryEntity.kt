@@ -5,7 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * `category` 表（ARCHITECTURE-P0 §3.1）：8 条内置分类由种子写入，本页只读
+ * `category` 表（docs/code-map/02-数据与领域.md）：8 条内置分类由种子写入，本页只读
  * （分类管理属 P1 的 FR-44，本页无写入路径）。
  */
 @Entity(tableName = "category")

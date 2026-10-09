@@ -1,7 +1,7 @@
 package com.dream.shouna.domain.model
 
 /**
- * F1 唯一实写的领域模型（ARCHITECTURE §3.2）。纯 Kotlin data class，不依赖 Android 框架。
+ * F1 唯一实写的领域模型（docs/code-map/02-数据与领域.md）。纯 Kotlin data class，不依赖 Android 框架。
  */
 data class StoredItem(
     /** UUID，`IdGenerator.newId()` 生成，源内唯一。 */

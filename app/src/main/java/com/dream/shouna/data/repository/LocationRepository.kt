@@ -6,7 +6,7 @@ import com.dream.shouna.domain.model.StoredItem
 import kotlinx.coroutines.flow.Flow
 
 /**
- * 位置删除的两档（FR-05 / ARCHITECTURE-P0 §8.1-4）。
+ * 位置删除的两档（FR-05 / docs/code-map/05-改动须知.md）。
  *
  * 两档都**不是**级联删除物品（§3.4 不变量 4），且都必须给物品一个去处
  * —— 因为 `item.location_id` 是 `NOT NULL`（位置必填口径）。
@@ -20,7 +20,7 @@ enum class LocationDeleteMode {
 }
 
 /**
- * 位置仓库（ARCHITECTURE-P0 §2 + P1 §2）：位置树读取、增删改、删除两档、最近使用；
+ * 位置仓库（docs/实现约束.md）：位置树读取、增删改、删除两档、最近使用；
  * **P1-02 起扩移动 / 合并 / 临时标记 / 递归计数**（接口扩展，既有签名不变）。
  * 只暴露稳定领域类型，不泄漏 Room 结构。
  */

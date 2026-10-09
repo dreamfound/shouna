@@ -7,7 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * `location` 表（ARCHITECTURE-P0 §3.1 + P1 §3.2）：位置树，`parent_id` 自引用、任意层级。
+ * `location` 表（docs/code-map/02-数据与领域.md）：位置树，`parent_id` 自引用、任意层级。
  *
  * - **`path` 已物化**（P1-01 的首个真实迁移）：ID 序列，形如 `/根id/…/自身id/`，含自身、前后带 `/`。
  *   它是**子树范围查询**（FR-21 计数 / FR-28 批量确认 / FR-22 位置筛选）的索引基础；

@@ -8,7 +8,7 @@ import com.dream.shouna.data.local.entity.AppConfigEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
- * `app_config` 表读写（ARCHITECTURE-P0 §3.1）：FR-27 超期阈值的真源。
+ * `app_config` 表读写（docs/code-map/02-数据与领域.md）：FR-27 超期阈值的真源。
  * 键名常量集中在 [ConfigKeys]，避免字面量散落。
  */
 @Dao
@@ -34,7 +34,7 @@ interface ConfigDao {
         /** 超期阈值（月）。P1 的 FR-29 的 3 / 6 / 12 复用同一行。 */
         const val KEY_THRESHOLD_MONTHS: String = "threshold_months"
 
-        /** 默认 6 个月（ARCHITECTURE-P0 §3.3 种子）。 */
+        /** 默认 6 个月（docs/code-map/02-数据与领域.md 种子）。 */
         const val DEFAULT_THRESHOLD_MONTHS: Int = 6
     }
 }

@@ -306,7 +306,7 @@ data class ItemEditUiState(
     val note: String = "",
     /** FR-16：本条记录的照片文件名（null = 没拍照）。文件本体的建删在 UI 层。 */
     val photoName: String? = null,
-    /** 位置 id。位置是**必填**（ARCHITECTURE-P0 §0）→ 载入成功后恒非空。 */
+    /** 位置 id。位置是**必填**（docs/PRD.md）→ 载入成功后恒非空。 */
     val locationId: String = "",
     /**
      * 已选位置的**完整面包屑路径**（`家 › 储物间 › 纸箱-07`）；与 [locationId] 恒同步。

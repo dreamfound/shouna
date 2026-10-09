@@ -8,7 +8,7 @@ import com.dream.shouna.data.local.entity.CategoryEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
- * `category` 表读写（ARCHITECTURE-P0 §3.1）：8 条内置由种子写入；
+ * `category` 表读写（docs/code-map/02-数据与领域.md）：8 条内置由种子写入；
  * **P1-05（FR-44）由只读扩为可写** —— 增删改三个写路径。
  *
  * 内置（`is_built_in = 1`）**可改名、不可删**（`prd/08` §7.4）：

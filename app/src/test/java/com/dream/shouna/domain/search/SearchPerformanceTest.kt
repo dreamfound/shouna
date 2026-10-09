@@ -6,7 +6,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 /**
- * P0-04 验收项里的 JVM 微基准（ARCHITECTURE-P0 §4 P0-04 / §9）：
+ * P0-04 验收项里的 JVM 微基准（docs/code-map/04-流程链路.md P0-04 / §9）：
  * **1000 件 ≤ 300ms、5000 件 ≤ 800ms**。
  *
  * 计时口径取**保守的一侧**：索引构建 + 一次检索一起计（真实 UX 上的最坏情形正是

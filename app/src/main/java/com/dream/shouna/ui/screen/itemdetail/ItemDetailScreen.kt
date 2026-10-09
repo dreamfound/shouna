@@ -47,7 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 有状态包装层（ARCHITECTURE §2）：取 ViewModel、把 UiState 与位置树下传。
+ * 有状态包装层（docs/实现约束.md）：取 ViewModel、把 UiState 与位置树下传。
  * 「✏ 编辑」与折叠区内的编辑入口都进 P-ITEM-EDIT，导航动作在本层下发。
  */
 @Composable

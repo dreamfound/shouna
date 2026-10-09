@@ -29,7 +29,7 @@ import com.dream.shouna.ui.screen.stats.StatsRoute
 
 /**
  * 全局唯一 NavController 出口：仅 [com.dream.shouna.MainActivity] 提供，Route 层消费。
- * `XxxScreen` 不得读取本对象（ARCHITECTURE §2）。
+ * `XxxScreen` 不得读取本对象（docs/实现约束.md）。
  */
 val LocalNavController = staticCompositionLocalOf<NavHostController> {
     error("LocalNavController 未提供：NavController 只能由 MainActivity 创建并下发")
@@ -51,7 +51,7 @@ private const val NAV_TRANSITION_MILLIS = 400
 /**
  * 唯一 NavHost：9 条 [ShounaRoute] 与 9 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
  *
- * 系统栏避让是**唯一容器级**职责（ARCHITECTURE §2、§7.2）：窗口是边到边的（`MainActivity`
+ * 系统栏避让是**唯一容器级**职责（docs/实现约束.md）：窗口是边到边的（`MainActivity`
  * 调 `enableEdgeToEdge()`，且 API 35+ 本就强制），故在此对唯一 NavHost 施加
  * `systemBars ∪ displayCutout ∪ ime` 内边距，9 个页面统一避开状态栏、导航栏与键盘、各自不再处理。
  * 用 `union` 而非叠加两次 padding：刘海屏竖屏时状态栏高度已含刘海、键盘高度已含导航栏，叠加会多出空白。

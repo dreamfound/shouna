@@ -7,12 +7,12 @@ import com.dream.shouna.domain.search.SearchDoc
 import kotlinx.coroutines.flow.Flow
 
 /**
- * 物品仓库（ARCHITECTURE §2）：用例编排、派生字段（归一化名 / 检索键）、失效过滤。
+ * 物品仓库（docs/实现约束.md）：用例编排、派生字段（归一化名 / 检索键）、失效过滤。
  * 只暴露稳定领域类型，不泄漏内存源内部结构。
  */
 interface ItemRepository {
     /**
-     * FR-09 / FR-10 / FR-12 + **位置必填**（ARCHITECTURE-P0 §0）：必填项 = **名称 + 位置**，
+     * FR-09 / FR-10 / FR-12 + **位置必填**（docs/PRD.md）：必填项 = **名称 + 位置**，
      * 状态恒 `in_storage`。
      *
      * 位置非空由 UI 层 `QuickAddUiState.canSave` 门控（用户要求「必须手动选择或输入位置」）；
@@ -57,7 +57,7 @@ interface ItemRepository {
     /**
      * FR-23：最近搜索词流（按最近使用倒序，上限 20 条），**仅搜索页空态**展示。
      *
-     * 【归属说明】`ARCHITECTURE-P0` §2 只定了 3 个仓库（Item / Location / Category），
+     * 【归属说明】`docs/code-map/02-数据与领域.md` 只定了 3 个仓库（Item / Location / Category），
      * 未给 `recent_search` 指定归属。它落在本接口，理由是「搜索页已经依赖本接口」
      * （[observeSearchDocs] 是同一页的数据源），加一个只有两个方法的仓库反而多一层空壳。
      */

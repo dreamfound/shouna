@@ -3,14 +3,23 @@
 
     <!--
       语音录入（FR-18 的简化形态）：系统语音识别需要录音权限。
-      **仍然不申请 `INTERNET`** —— 识别由系统识别服务（独立进程）完成，本应用自身不联网，
-      NFR-01 / NFR-02 全文有效。识别请求带 `EXTRA_PREFER_OFFLINE`，能用设备本地识别就不出机。
+      识别由系统识别服务（独立进程）完成，本应用**不为其联网** —— 识别请求带
+      `EXTRA_PREFER_OFFLINE`，能用设备本地识别就不出机。
 
       拍照（FR-16）：走系统相机（`ACTION_IMAGE_CAPTURE`）与系统相册选择器，
       **刻意不声明 `CAMERA` 权限** —— 一旦声明，系统相机 Intent 反而要求该权限已被授予；
       不声明则由相机应用自己持有，本应用只拿到结果 URI。
     -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+      AI 一句话录入（V2，见 docs/code-map/02-数据与领域.md）：**仅用于用户在 AI 入口显式提交时的一次解析请求**。
+      - 出网代码只允许出现在 `data/remote/ai/` 一个目录内，且任何调用都必须过统一闸门
+        （docs/实现约束.md §7-5）；
+      - 总开关**出厂默认关**，未开启时不产生任何网络请求，行为与 v1.5 完全一致；
+      - 密钥经 Android Keystore（AES-256-GCM）加密后只存本机，不进日志、不上传。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Android 11+ 包可见性：要让 `ACTION_IMAGE_CAPTURE` 能被解析到系统相机。 -->
     <queries>

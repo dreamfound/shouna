@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
 /**
- * 测试用内存 DAO 替身（ARCHITECTURE-P0 §8.1-13）：纯 JVM，不依赖 Android / SQLite / Room 运行时。
+ * 测试用内存 DAO 替身（docs/code-map/05-改动须知.md）：纯 JVM，不依赖 Android / SQLite / Room 运行时。
  *
  * 分工：仓库层的**业务逻辑**用这里的替身在 JVM 单测里覆盖；「SQL 与 schema 是否正确」
  * 交给 androidTest（`room-testing`）。这样既不用引入 Robolectric，也不放弃 Room 的验证。

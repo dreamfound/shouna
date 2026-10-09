@@ -32,7 +32,7 @@ import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
 
 /**
- * 位置选择弹层（ARCHITECTURE-P0 §8.1-9）：底部弹层内嵌同一棵位置树 + **可选的「＋ 新建位置」**。
+ * 位置选择弹层（docs/code-map/05-改动须知.md）：底部弹层内嵌同一棵位置树 + **可选的「＋ 新建位置」**。
  *
  * 为什么用弹层而不是独立页：少一条路由变体、少一个跨页结果回传通道（`savedStateHandle`）。
  * 树可能很深，弹层高度按 80% 屏高固定。

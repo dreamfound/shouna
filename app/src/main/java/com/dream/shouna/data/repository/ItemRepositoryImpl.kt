@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.map
 
 /**
  * P0-01：内存源 → Room（`ItemDao`）。**接口形态、派生字段与失效过滤口径全部沿用 F1**，
- * 只有数据源与「写路径走事务」两处变化（ARCHITECTURE-P0 §2）。
+ * 只有数据源与「写路径走事务」两处变化（docs/实现约束.md）。
  *
  * 拼音列（`pinyin_full` / `pinyin_initial`）在**写入时**由 [PinyinUtil] 派生并持久化——
  * 守 PRD 08 §7.6 的 A-2 约束：改名与移动的代价与物品数量脱钩（换个名字只需重算这一条）。

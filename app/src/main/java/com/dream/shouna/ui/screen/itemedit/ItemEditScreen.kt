@@ -39,7 +39,7 @@ import com.dream.shouna.ui.navigation.popBack
 import com.dream.shouna.util.PhotoStore
 
 /**
- * 有状态包装层（ARCHITECTURE §2）：取 ViewModel、把 UiState 与分类列表下传。
+ * 有状态包装层（docs/实现约束.md）：取 ViewModel、把 UiState 与分类列表下传。
  * 保存成功的事件在本层消费（删旧照片文件 → 关页），导航不进 `ItemEditScreen`。
  */
 @Composable

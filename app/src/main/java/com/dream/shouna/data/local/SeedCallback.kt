@@ -6,7 +6,7 @@ import com.dream.shouna.data.local.dao.ConfigDao
 import com.dream.shouna.data.memory.BuiltInData
 
 /**
- * 建库种子（ARCHITECTURE-P0 §3.3）：用 `RoomDatabase.Callback.onCreate()`，语义天然匹配
+ * 建库种子（docs/code-map/02-数据与领域.md）：用 `RoomDatabase.Callback.onCreate()`，语义天然匹配
  * 「仅全新安装首次」，**因此不需要初始化迁移**。
  *
  * 写入内容：哨兵位置 1 条（系统保留）+ 默认位置树 6 节点 + 内置分类 8 条 + 超期阈值。

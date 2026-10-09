@@ -5,7 +5,7 @@ import androidx.room.withTransaction
 import javax.inject.Inject
 
 /**
- * 跨表写的「事务边界」抽象（ARCHITECTURE-P0 §2 写路径守卫）。
+ * 跨表写的「事务边界」抽象（docs/实现约束.md 写路径守卫）。
  *
  * 为什么需要这一层：`RoomDatabase.withTransaction` 需要真实的 Room 实例，而 **JVM 单测里没有
  * Android 运行时** → 仓库层若直接依赖 `ShounaDatabase`，「删除子树不留孤儿」「迁移 / 标记两档」

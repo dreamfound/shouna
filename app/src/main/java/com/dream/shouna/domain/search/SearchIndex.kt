@@ -3,7 +3,7 @@ package com.dream.shouna.domain.search
 import com.dream.shouna.util.TextNormalizer
 
 /**
- * 内存搜索索引（ARCHITECTURE §4 F1-04 ①②③）：权重排序、失效过滤、高亮区间。
+ * 内存搜索索引（docs/code-map/04-流程链路.md）：权重排序、失效过滤、高亮区间。
  * 纯 Kotlin，可在 JVM 上直接做微基准（1000 件 ≤300ms、5000 件 ≤800ms）。
  *
  * P0-04 起检索维度由 2 档扩到 4 档（名称 / 拼音 / 位置 / 分类），判定与权重在 [SearchScorer]；

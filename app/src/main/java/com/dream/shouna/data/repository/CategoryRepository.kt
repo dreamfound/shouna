@@ -4,7 +4,7 @@ import com.dream.shouna.domain.model.Category
 import kotlinx.coroutines.flow.Flow
 
 /**
- * 分类仓库（ARCHITECTURE §2）：P0 只读（数据源 = `category` 表，8 条内置由种子写入）；
+ * 分类仓库（docs/实现约束.md）：P0 只读（数据源 = `category` 表，8 条内置由种子写入）；
  * **P1-05 由只读扩为可写**（FR-44 分类管理）。
  *
  * 内置 / 自定义的判据是 [Category.isBuiltIn]（读 `category.is_built_in`），

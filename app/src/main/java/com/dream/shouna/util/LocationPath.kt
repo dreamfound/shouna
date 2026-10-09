@@ -3,7 +3,7 @@ package com.dream.shouna.util
 import com.dream.shouna.domain.model.Location
 
 /**
- * 位置路径拼装（FR-02 / ARCHITECTURE-P0 §0 + P1-01）：本类持有**两种**路径，别混。
+ * 位置路径拼装（FR-02 / docs/PRD.md + P1-01）：本类持有**两种**路径，别混。
  *
  * | 路径 | 形态 | 是否落库 | 用途 |
  * |---|---|---|---|

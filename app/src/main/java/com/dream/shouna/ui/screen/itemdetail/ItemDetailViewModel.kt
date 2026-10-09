@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
  * - P1-04 新增「待归位 / 归位」「移动到…」：状态变化与位置变化都**刷新 `lastModifiedAt`**，
  *   且都不是一次确认（`lastConfirmedAt` 不动）。
  *
- * 文案组装全部在本层完成（Screen 不持有 TimeUtil / ConfigRepository，ARCHITECTURE §2）；
+ * 文案组装全部在本层完成（Screen 不持有 TimeUtil / ConfigRepository，docs/实现约束.md）；
  * 「⋯更多」折叠区要用位置树来做「移动到…」，树由本层提供，弹层的开合由页面持有。
  *
  * 被调用方：ItemDetailRoute（hiltViewModel + load / 各动作）

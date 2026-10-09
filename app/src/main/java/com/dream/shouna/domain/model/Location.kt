@@ -1,7 +1,7 @@
 package com.dream.shouna.domain.model
 
 /**
- * 位置（ARCHITECTURE-P0 §3）：`parent_id` 自引用的任意层级树。
+ * 位置（docs/code-map/02-数据与领域.md）：`parent_id` 自引用的任意层级树。
  *
  * - [isBuiltIn] 为 true 的位置是**系统保留位**（仅 `未指定位置` 一条哨兵）：不出现在位置选择器
  *   与浏览页、不可删除。位置必填口径下，正常录入路径**永不**落到内置位置。

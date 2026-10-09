@@ -5,7 +5,7 @@ import com.dream.shouna.domain.model.Location
 import com.dream.shouna.util.LocationPath
 
 /**
- * 内置常量唯一来源（ARCHITECTURE-P0 §3.3）：本页不再只有哨兵与分类，另含
+ * 内置常量唯一来源（docs/code-map/02-数据与领域.md）：本页不再只有哨兵与分类，另含
  * **首启默认位置树 6 节点**（[DEFAULT_LOCATION_TREE]），全部由
  * [com.dream.shouna.data.local.SeedCallback] 在首次建库时写入。
  *
@@ -36,7 +36,7 @@ object BuiltInData {
      * 调用关系：8 × `Category(id, name, isBuiltIn, sortOrder)` 构造；被
      * [com.dream.shouna.data.local.SeedCallback] 写入 `category` 表（`is_built_in = 1`），
      * 再由 `CategoryRepositoryImpl.observeCategories` 读出。
-     * 取值口径（常量兜底，ARCHITECTURE §7.3 未钉死具体名单）：名称取自 PRD `FR-12` 的举例
+     * 取值口径（常量兜底，docs/code-map/02-数据与领域.md 未钉死具体名单）：名称取自 PRD `FR-12` 的举例
      * 「电器/衣物/工具/文具/药品/其他…」并补足到 8 条；`sortOrder` 即 chips 排列顺序。
      *
      * P1-05（FR-44）：`isBuiltIn = true` 的这 8 条**可改名、不可删**（`prd/08` §7.4）。

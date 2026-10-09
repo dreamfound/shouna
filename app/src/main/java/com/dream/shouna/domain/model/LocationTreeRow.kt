@@ -1,7 +1,7 @@
 package com.dream.shouna.domain.model
 
 /**
- * 位置树的一行（ARCHITECTURE-P0 §2「domain 新增 1 个派生模型」）：由 [Location] + 层次 + 路径 +
+ * 位置树的一行（docs/code-map/02-数据与领域.md「domain 新增 1 个派生模型」）：由 [Location] + 层次 + 路径 +
  * 件数派生，**不落库**。
  *
  * 为什么用「展平的行」而不是嵌套树：Compose 的 `LazyColumn` 只能渲染扁平列表，

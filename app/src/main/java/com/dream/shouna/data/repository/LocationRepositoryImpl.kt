@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 /**
- * 位置树实现（ARCHITECTURE-P0 §2 / §4 P0-02）。
+ * 位置树实现（docs/实现约束.md / docs/code-map/04-流程链路.md）。
  *
  * 三条硬约束的落点：
  * - **跨表写在单事务内**：删除子树涉及「迁移物品 + 删位置」多个语句，必须原子（§2 写路径守卫）。

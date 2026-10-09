@@ -9,7 +9,7 @@ import net.sourceforge.pinyin4j.format.HanyuPinyinToneType
 import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType
 
 /**
- * 拼音派生（FR-20 / ARCHITECTURE-P0 §4 P0-04 ①）：全拼 + 首字母，**离线、零网络**。
+ * 拼音派生（FR-20 / docs/code-map/04-流程链路.md）：全拼 + 首字母，**离线、零网络**。
  *
  * 口径（§8.1-10 / §8.1-11）：
  * - **多音字取默认读音**（`toHanyuPinyinStringArray` 返回数组的第一个），不做声调、不做谐音纠错。

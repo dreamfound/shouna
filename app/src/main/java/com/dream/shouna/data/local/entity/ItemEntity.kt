@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 import com.dream.shouna.domain.model.ItemStatus
 
 /**
- * `item` 表（ARCHITECTURE-P0 §3.1 / §3.2）：一物一处，位置必填、状态落库。
+ * `item` 表（docs/code-map/02-数据与领域.md）：一物一处，位置必填、状态落库。
  *
  * 外键取向：
  * - `location_id` → `location.id` **ON DELETE RESTRICT**：孤儿防线（§3.4 不变量 1）。

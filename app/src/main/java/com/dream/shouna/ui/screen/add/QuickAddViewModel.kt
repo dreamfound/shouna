@@ -2,9 +2,14 @@ package com.dream.shouna.ui.screen.add
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dream.shouna.data.repository.AiIntake
+import com.dream.shouna.data.repository.AiSettingsRepository
 import com.dream.shouna.data.repository.CategoryRepository
 import com.dream.shouna.data.repository.ItemRepository
 import com.dream.shouna.data.repository.LocationRepository
+import com.dream.shouna.domain.ai.AiDraftRow
+import com.dream.shouna.domain.ai.AiFailReason
+import com.dream.shouna.domain.ai.AiState
 import com.dream.shouna.domain.model.Category
 import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
@@ -27,7 +32,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * FR-09 / FR-10 / FR-12 + **位置必填**（ARCHITECTURE-P0 §0）的状态机。
+ * FR-09 / FR-10 / FR-12 + **位置必填**（docs/PRD.md）的状态机。
  *
  * 位置必填的三条规则在此落地：
  * ① 位置条默认**预选最近使用**的位置（`last_used_at` 最近者）；首次安装无使用史 → 未选 → 不可保存。
@@ -35,12 +40,23 @@ import kotlinx.coroutines.launch
  * ③ 保存成功后**保留**位置（只清名称 / 分类 / 备注）→ 连续录入沿用同一位置，不打断（PRD US-02）。
  *
  * 被调用方：QuickAddRoute（hiltViewModel + 方法引用下传）
+ *
+ * 【V2 起多挂一条 AI 旁路】`docs/code-map/02-数据与领域.md` AI-02：一句话 / 一张照片 → 草稿 → 页内确认卡 →
+ * 用户点确认才落库（`V2-FR-04`：AI 产出永不直接落库）。AI 是**可选旁路**，与上面这条连续录入
+ * 状态机互不干扰 —— 关着开关时本类的行为与 v1.5 逐字一致。
+ *
+ * 【本类为什么不持有 `Context`】照片通道需要的 base64 由**调用方（Compose 层）**编码好传进来：
+ * 本工程的文件 IO 一律留在 Compose 层（既有 `PhotoStore` 的调用点全在 Composable 里，
+ * 见 `PhotoInputRow` / `ItemDetailScreen` / `ItemEditScreen`）。见 [onAiParse]。
  */
 @HiltViewModel
 class QuickAddViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
     private val locationRepository: LocationRepository,
-    categoryRepository: CategoryRepository,
+    private val categoryRepository: CategoryRepository,
+    // AI 的解析与落库在 [AiIntake]（用例层），与首页共用同一份 —— 本 VM 只管页内状态。
+    private val aiIntake: AiIntake,
+    private val aiSettings: AiSettingsRepository,
 ) : ViewModel() {
 
     private val state = MutableStateFlow(QuickAddUiState())
@@ -104,6 +120,27 @@ class QuickAddViewModel @Inject constructor(
                         }
                     }
                 }
+        }
+
+        // V2 AI：总开关的订阅（`V2-FR-15`）。开关与录入页 AI 按钮的可见性是**同一真源** ——
+        // 设置页订阅的是同一条流，两页必须读到同一个值。
+        //
+        // 关掉开关时**连卡片一起收掉**（回 `Hidden`）：开关的语义是「立刻停止一切请求」，
+        // 让一张已生成的草稿卡继续挂在页面上，等于给用户一个已经失效的入口。
+        // 反过来，开关刚打开时从 `Hidden` 落到 `Idle`；已有草稿（非 Hidden）则原样保留。
+        viewModelScope.launch {
+            aiSettings.observeEnabled().collect { enabled ->
+                state.update { current ->
+                    current.copy(
+                        aiEnabled = enabled,
+                        aiState = when {
+                            !enabled -> AiState.Hidden
+                            current.aiState is AiState.Hidden -> AiState.Idle
+                            else -> current.aiState
+                        },
+                    )
+                }
+            }
         }
     }
 
@@ -310,6 +347,156 @@ class QuickAddViewModel @Inject constructor(
         viewModelScope.launch { viewSimilar.emit(itemId) }
     }
 
+    // --- V2 AI：一句话 / 一张照片 → 草稿 → 页内确认（`docs/code-map/02-数据与领域.md` AI-02） ------------
+
+    /**
+     * AI 按钮的唯一入口（`V2-FR-02` 文字 / `V2-FR-11` 照片）。
+     *
+     * 【为什么 base64 由调用方编码好再传进来】守 `util/PhotoStore` 立下的分层：**文件 IO 全部留在
+     * Compose 层**（本工程 `PhotoStore` 的调用点全在 Composable 里）。本 VM 因此不持有 `Context`，
+     * 只接手一个已编码的串；传 `null` 表示「本次没有照片」，走文字通道。
+     *
+     * 【通道怎么选】看**当前表单给了什么**：有照片走照片通道（图是更强的输入），否则看名称框的
+     * 文字走文字通道；两者都没有 → 只给一行提示。
+     *
+     * 【照片通道的前置（`V2-FR-13`「位置先定后用」）】未选位置时**不调模型**，直接给提示 ——
+     * 位置要由用户先定，且模型的返回里没有位置字段（`AiPrompt` 亦强制 `location_path = null`），
+     * 没有目标位置这一步就无从落地。
+     *
+     * 【失败只有一条路径】闸门返 null（未开启 / 无密钥 / 非 2xx / JSON 非法）→ 行内提示，不弹窗、
+     * 不阻塞、不计数（`V2-FR-07` / `V2-COST-04`）。
+     */
+    fun onAiParse(imageBase64: String?) {
+        val current = state.value
+        val photoName = current.photoName
+        val photoBase64 = imageBase64
+        viewModelScope.launch {
+            state.update { it.copy(aiState = AiState.Parsing) }
+
+            // 先判密钥：此时给「去设置页填」比给「解析失败」有用得多。
+            if (!aiSettings.hasApiKey()) {
+                fail(AiFailReason.NO_KEY)
+                return@launch
+            }
+
+            // 【通道怎么选】看当前表单给了什么：有照片走照片通道（图是更强的输入），否则看名称框
+            // 的文字走文字通道；两者都没有 → 只给一行提示。
+            //
+            // 【照片通道的前置（`V2-FR-13`「位置先定后用」）】未选位置时**不调模型**，直接给提示
+            // —— 位置要由用户先定，且模型的返回里没有位置字段（`AiPrompt` 亦强制
+            // `location_path = null`），没有目标位置这一步就无从落地。这两道判断留在页面侧
+            // （它们读的是**页内表单态**），解析与落库本身在 [AiIntake]。
+            val rows = when {
+                photoName != null && photoBase64.isNullOrBlank() -> {
+                    fail(AiFailReason.PHOTO_READ_FAILED)
+                    return@launch
+                }
+
+                photoName != null && current.selectedLocationId == null -> {
+                    fail(AiFailReason.NEED_LOCATION_FOR_PHOTO)
+                    return@launch
+                }
+
+                // 走到这里 base64 必非空（上一分支已把空值挡掉并返回）：此处 `!!` 是陈述，不是兜底。
+                photoName != null -> aiIntake.parsePhoto(photoBase64!!)
+
+                current.inputName.isNotBlank() -> aiIntake.parseText(current.inputName)
+
+                else -> {
+                    fail(AiFailReason.NEED_INPUT)
+                    return@launch
+                }
+            }
+
+            // 失败只有一条路径：闸门返 null（未开启 / 无密钥 / 非 2xx / JSON 非法 / 网络异常）
+            // → 行内提示，不弹窗、不阻塞、不计数（`V2-FR-07` / `V2-COST-04`）。
+            when {
+                rows == null -> fail(AiFailReason.PARSE_FAILED)
+                rows.isEmpty() -> fail(AiFailReason.NOTHING_RECOGNIZED)
+                else -> state.update { it.copy(aiState = AiState.Draft(rows = rows)) }
+            }
+        }
+    }
+
+    /** 卡片上逐行勾选 / 取消（`V2-FR-11`「默认全选，可逐行取消」）。 */
+    fun onAiToggle(rowIndex: Int) {
+        state.update { current ->
+            val draft = current.aiState as? AiState.Draft ?: return@update current
+            if (rowIndex !in draft.rows.indices) return@update current
+            current.copy(
+                aiState = AiState.Draft(
+                    rows = draft.rows.mapIndexed { index, row ->
+                        if (index == rowIndex) row.copy(selected = !row.selected) else row
+                    },
+                ),
+            )
+        }
+    }
+
+    /**
+     * 点「填入」（1 件）/「全部记下」（多件）。
+     *
+     * 【1 件 = 回填，多件 = 逐条落库】1 件时把四个字段填回主表单、卡片收掉，用户还能改、改完自己点
+     * 「保存并继续」——这是「AI 只是帮你打字」的形态。多件时逐条直接落库（用户 2026-10-08 选的
+     * 「每次确认单独写入」）：N 件回填表单是回填不下的，而「一次确认、一次落库」正是 `V2-FR-11`
+     * 的验收口径。**两条路径都不经连续录入流**（`实现约束.md` §4-4）。
+     */
+    fun onAiApply() {
+        val current = state.value
+        val draft = current.aiState as? AiState.Draft ?: return
+        val rows = draft.rows.filter { it.selected }
+        if (rows.isEmpty()) {
+            fail(AiFailReason.NOTHING_SELECTED)
+            return
+        }
+        // 照片通道的草稿没有位置（`V2-FR-13`）⇒ 物品一律落到**用户已选的位置**；文字通道若有草稿
+        // 位置解析不出来，也回落到这里。这个回落值在起协程前取定，避免中途被别的写改掉。
+        val fallbackLocationId = current.selectedLocationId
+        viewModelScope.launch {
+            if (rows.size == 1) {
+                applyOneRow(rows.first())
+            } else {
+                // 多件：逐条落库（`AiIntake.commitRows`，与「保存并继续」同一写入口径）。
+                val result = aiIntake.commitRows(rows, fallbackLocationId)
+                state.update {
+                    it.copy(
+                        aiState = if (it.aiEnabled) AiState.Idle else AiState.Hidden,
+                        sessionCount = it.sessionCount + result.saved,
+                    )
+                }
+                recent.value = locationRepository.recentUsed()
+            }
+        }
+    }
+
+    /** 点「忽略」：清卡片，**主表单一行不动**（`V2-FR-04` 的另一半）。 */
+    fun onAiDismiss() {
+        state.update {
+            it.copy(aiState = if (it.aiEnabled) AiState.Idle else AiState.Hidden)
+        }
+    }
+
+    // --- AI 内部 ------------------------------------------------------------------------
+
+    private fun fail(reason: AiFailReason) {
+        state.update { it.copy(aiState = AiState.Failed(reason = reason)) }
+    }
+
+    /** 单件：回填主表单。**一律走既有 setter**（见类注释与 AI-02 子步骤⑥）。 */
+    private suspend fun applyOneRow(row: AiDraftRow) {
+        if (row.name.isNotBlank()) onNameChange(row.name)
+        onCategorySelected(row.categoryId)
+        if (!row.note.isNullOrBlank()) onNoteChange(row.note)
+        // 位置解析（含「待新建」层的逐层创建）在 [AiIntake]；单件路径不需要跨条复用缓存。
+        aiIntake.resolveLocation(row)?.let { locationId ->
+            // 新建过节点的话树已经变了，故**重读一次树**现算路径，不用可能已过期的快照。
+            selectLocation(locationId, pathOf(locationRepository.observeTree().first(), locationId))
+            picker.value = false
+            recent.value = locationRepository.recentUsed()
+        }
+        onAiDismiss()
+    }
+
     /**
      * 选中一个位置：**id 与显示路径在同一次 `state.update` 里落定**。
      *
@@ -359,7 +546,7 @@ data class QuickAddUiState(
      */
     val photoName: String? = null,
     val sessionCount: Int = 0,
-    /** **名称非空 ∧ 位置已选** 才为 true（位置必填，ARCHITECTURE-P0 §0）。 */
+    /** **名称非空 ∧ 位置已选** 才为 true（位置必填，docs/PRD.md）。 */
     val canSave: Boolean = false,
     /** 已选位置 id；null = 未选（不可保存）。 */
     val selectedLocationId: String? = null,
@@ -380,6 +567,13 @@ data class QuickAddUiState(
     val similarCount: Int = 0,
     /** FR-14：「查看」要跳转到的已有物品 id。null = 无提示。 */
     val similarItemId: String? = null,
+    /**
+     * `V2-FR-06`：AI 总开关（**出厂默认关**）。录入页 AI 按钮**可见性的唯一真源** ——
+     * 关着时按钮不出现、零网络请求，行为与 v1.5 完全一致（`V2-AI-PRD` §5 硬约束）。
+     */
+    val aiEnabled: Boolean = false,
+    /** AI 入口的状态机（`docs/code-map/02-数据与领域.md` AI-02 子步骤①）。开关未开时为 [AiState.Hidden]。 */
+    val aiState: AiState = AiState.Hidden,
 )
 
 /**
@@ -395,3 +589,7 @@ enum class VoiceField {
     /** 备注框（折叠区内）。 */
     NOTE,
 }
+
+// AI 的共享类型（`AiState` / `AiFailReason` / `AiDraftRow`）已移到 `domain/ai/`：
+// 首页（P-HOME）也出一张确认卡，留在本页的包里会迫使另一页反向依赖本页。
+

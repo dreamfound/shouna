@@ -14,12 +14,12 @@ import com.dream.shouna.ui.theme.ShounaTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * F1 唯一 Activity。`NavController` 只在此创建一次，经 [LocalNavController] 下发（ARCHITECTURE §2）。
+ * F1 唯一 Activity。`NavController` 只在此创建一次，经 [LocalNavController] 下发（docs/实现约束.md）。
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     /**
-     * 永久浅色的窗口层收敛（ARCHITECTURE §7.2）：把 `uiMode` 锁成 `NIGHT_NO`。
+     * 永久浅色的窗口层收敛（docs/实现约束.md）：把 `uiMode` 锁成 `NIGHT_NO`。
      *
      * 只靠 Compose 侧 `dynamicLightColorScheme` + `fontScale = 1f` 不够——窗口与系统栏不归
      * Compose 管。锁住 `uiMode` 后：① 系统切深色时 `enableEdgeToEdge()` 仍按浅色背景取**深色**

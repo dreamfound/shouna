@@ -8,7 +8,7 @@ import com.dream.shouna.data.local.entity.RecentSearchEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
- * `recent_search` 表读写（ARCHITECTURE-P0 §3.1）：FR-23 最近搜索词，仅搜索页空态展示。
+ * `recent_search` 表读写（docs/code-map/02-数据与领域.md）：FR-23 最近搜索词，仅搜索页空态展示。
  *
  * 上限 20 条（[RECENT_SEARCH_LIMIT]）由 [trim] 在每次写入后维护——不在表上做约束，
  * 因为「保留最近 N 条」是策略而非数据完整性要求（改上限时只需改常量）。

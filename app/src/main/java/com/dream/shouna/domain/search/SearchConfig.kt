@@ -1,7 +1,7 @@
 package com.dream.shouna.domain.search
 
 /**
- * 搜索配置（ARCHITECTURE-P0 §4 P0-04 ④）：limit + 四档命中权重。
+ * 搜索配置（docs/code-map/04-流程链路.md）：limit + 四档命中权重。
  *
  * 权重次序照 PRD 08 §7.x / P0 §4 ④ 的原文 ——
  * 「名称前缀命中 > 名称子串命中 > 别名 / 拼音命中 > 位置 / 分类命中」，

@@ -1,7 +1,7 @@
 package com.dream.shouna.domain.search
 
 /**
- * 命中类型（ARCHITECTURE-P0 §4 P0-04 ④）。
+ * 命中类型（docs/code-map/04-流程链路.md）。
  *
  * F1 只有名称与分类名两档；P0 补拼音与位置两档。
  * 仅在名称命中时才有可高亮区间 —— 其余三档都不对应名称上的连续片段。

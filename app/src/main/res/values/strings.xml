@@ -1,4 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Shouna</string>
+
+    <!-- V2 AI 节（docs/code-map/02-数据与领域.md AI-03）。本页其余文案是 P1 遗留的硬编码中文，
+         不在本轮范围 —— 新文案按该任务包的要求集中到这里，不新增 values-night/。 -->
+    <string name="settings_ai_title">AI 录入</string>
+    <string name="settings_ai_subtitle">说一句、或拍一张，自动填好名称、分类与备注；位置由你自己选。</string>
+    <string name="settings_ai_key_label">API Key</string>
+    <string name="settings_ai_key_save">保存</string>
+    <string name="settings_ai_key_missing">尚未配置密钥</string>
+    <string name="settings_ai_key_present">已配置密钥（只写入，不回显）</string>
+    <string name="settings_ai_usage">本周期已用 %1$d 次</string>
+    <string name="settings_ai_privacy">仅在开关开启时，你主动提交的那句话、位置名称清单、已有分类名称，以及你主动发起识别的那张照片，会发往你配置的 AI 服务商。物品数据永不出设备。</string>
+    <string name="settings_privacy_body">数据仅保存在本机，不提供备份与迁移通道，卸载应用或更换设备即永久丢失且不可恢复。核心的录入、查找与浏览功能完全离线可用。</string>
+
+    <!-- V2 录入页 AI 入口与确认卡（docs/code-map/02-数据与领域.md AI-02）。失败提示统一走**行内一行文字**，
+         不弹窗（实现约束.md §4-1）——每种失败原因一句，用户能据此知道「下一步做什么」。 -->
+    <string name="ai_entry_parsing">AI 识别中…</string>
+    <string name="ai_entry_fail_no_key">还没配置密钥，请到设置页填写</string>
+    <string name="ai_entry_fail_need_location">请先选择位置，再识别照片</string>
+    <string name="ai_entry_fail_need_input">先说一句，或先加一张照片</string>
+    <string name="ai_entry_fail_photo_read">照片读取失败，请重试</string>
+    <string name="ai_entry_fail_parse">解析失败，可直接手工录入</string>
+    <string name="ai_entry_fail_nothing">没识别出物品，可直接手工录入</string>
+    <string name="ai_entry_fail_nothing_selected">请至少选择一件</string>
+
+    <string name="ai_card_title_one">AI 识别到 1 件</string>
+    <string name="ai_card_title_many">AI 识别到 %1$d 件</string>
+    <string name="ai_card_action_fill">填入</string>
+    <!-- 首页没有主表单可回填：1 件时也只能是「记下」（不是「填入」）。 -->
+    <string name="ai_card_action_save_one">记下</string>
+    <string name="ai_card_action_save_all">全部记下</string>
+    <string name="ai_card_action_dismiss">忽略</string>
+    <!-- 位置树里还没有这一层：只在卡片上标出来，点「填入 / 全部记下」后才真的逐层新建。 -->
+    <string name="ai_card_location_pending">%1$s（待新建）</string>
+    <!-- 一行位置线索都没有（首页通道才会出现）：明说它不会被记下，别让用户白勾一次。 -->
+    <string name="ai_card_location_missing">缺位置，不会被记录</string>
+    <string name="ai_card_no_fields">没有其他可填的字段</string>
+
+    <!-- V2 首页语音入口（V2-FR-10）：按钮只在 AI 总开关开启时出现；说完直接出确认卡。 -->
+    <string name="ai_home_voice_entry">🎤 说一句</string>
+    <string name="ai_home_saved">已记下 %1$d 件</string>
+    <string name="ai_home_unsaved">另有 %1$d 件没记下</string>
+
+    <!-- V2 首页拍照入口（V2-FR-11 / 13）：位置先定后用 —— 位置条排在最前，未选位置则识别按钮不可点。 -->
+    <string name="ai_home_photo_entry">📷 拍照AI记</string>
+    <string name="ai_home_photo_title">拍照AI记</string>
+    <string name="ai_home_photo_location">位置：%1$s</string>
+    <string name="ai_home_photo_location_empty">选择位置（必填）</string>
+    <string name="ai_home_photo_need_photo">先拍一张，或从相册选一张</string>
+    <string name="ai_home_photo_recognize">识别</string>
+    <string name="ai_home_photo_collapse">收起</string>
 </resources>

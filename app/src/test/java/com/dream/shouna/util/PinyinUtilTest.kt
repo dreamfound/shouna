@@ -6,7 +6,7 @@ import org.junit.Test
 /**
  * FR-20 单测（纯 JVM）：拼音全拼 / 首字母的派生口径。
  *
- * 覆盖四条约定（ARCHITECTURE-P0 §8.1-10 / §8.1-11）：
+ * 覆盖四条约定（docs/code-map/05-改动须知.md-10 / §8.1-11）：
  * ① 全拼与首字母；② 多音字取**默认读音**且结果稳定；③ **非汉字原样保留**；
  * ④ 输出经 `TextNormalizer.normalize`（与检索键同源）。
  *

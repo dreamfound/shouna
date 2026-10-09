@@ -1,7 +1,7 @@
 package com.dream.shouna.util
 
 /**
- * 文本归一化（ARCHITECTURE §3.2 `normalizedName`、§4 F1-03 ①）：规则与检索键同源。
+ * 文本归一化（docs/code-map/02-数据与领域.md）：规则与检索键同源。
  * 规则：全角→半角、大小写统一、空白折叠。无拼音（F1 不做拼音检索）。
  *
  * 被调用方：`deriveNormalizedName`（ItemRepositoryImpl）→ `normalizedName`
