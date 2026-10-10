@@ -200,6 +200,20 @@ interface ItemDao {
      */
     @Query("UPDATE item SET photo_path = :photoPath WHERE id = :id")
     suspend fun updatePhoto(id: String, photoPath: String?): Int
+
+    /**
+     * V2-FR-11（2026-10-09）：**还有几条记录指向这个照片文件名**。
+     *
+     * 【为什么需要它】拍照 AI 录入一次可能识别出多件，这些记录**共用同一个照片文件**
+     * （`photo_path` 存的是文件名，不是路径，物理上只有一份）。因此「移除照片」不能无条件删文件
+     * —— 删早了会让其余记录变成破图。调用方在**清库之前**问一次计数（此时包含自己）：
+     * `<= 1` 才意味着清掉本条之后没人再用，文件才是孤儿。
+     *
+     * 一次性读（`suspend`）而非 Flow：这是「删之前判一下」的单次询问，不是要订阅的列表，
+     * 与 [count] 同类。
+     */
+    @Query("SELECT COUNT(*) FROM item WHERE photo_path = :photoName")
+    suspend fun countByPhotoPath(photoName: String): Int
 }
 
 /** `location_id → 直属活跃件数` 的查询投影（Room 投影类，不入表）。 */

@@ -431,8 +431,9 @@ private fun AiParseButton(
     }
 }
 
-// AI 状态区（进度 / 失败 / 确认卡）已移到 `ui/component/AiStatusSection.kt` —— 首页也要同一段。
+// AI 状态区（进度 / 失败 / 确认卡）已移到 `ui/component/AiStatusSection.kt` —— 录入页是当前唯一宿主
+// （首页与两条 AI 页自 2026-10-09 起都不再走确认卡）。
 
 
-// 失败原因 → 文案的映射已移到 `ui/component/AiFailText.kt`（首页也要同一套文案）。
+// 失败原因 → 文案的映射已移到 `ui/component/AiFailText.kt`（三处 AI 界面共用同一套文案）。
 

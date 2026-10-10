@@ -70,6 +70,23 @@ android {
         }
     }
 
+    // 2026-10-10：Vosk 的 `libvosk.so` 覆盖四个 ABI（未压缩合计约 39.7 MB）。
+    // 四个架构**都保留**、但在**打包时按 ABI 拆分** —— 每个安装包只背自己那一份原生库，
+    // 真机（arm64-v8a / armeabi-v7a）与模拟器（x86 / x86_64）各装各的。
+    //
+    // 注意两点：
+    //   1. 拆包**不会**复制 assets ⇒ 每个分包仍各带一份语音模型（约 42 MB），
+    //      所以单包的体积是「本架构 .so + 模型」，不是二者的总和里再省一份。
+    //   2. `isUniversalApk = false`：不额外产出「全架构合一」的包，避免多出一个没人装的产物。
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
     sourceSets {
         // P1-01：把导出的 Room schema 目录挂进 androidTest 资产。`MigrationTestHelper`
         // 按「数据库类全名 / <version>.json」的相对路径从资产里读 v1 / v2 的结构，
@@ -116,6 +133,11 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.pinyin4j)
+
+    // 2026-10-10：内置离线语音识别。**只在系统识别服务不可用时回落**（国行 ROM 普遍不暴露
+    // `RecognitionService`）—— 路由与绑定见 `di/AsrModule.kt`、`data/local/asr/`。
+    // 模型（约 42 MB）以 assets 形式随包发布，不入仓库（根 `.gitignore` 已登记）。
+    implementation(libs.vosk.android)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

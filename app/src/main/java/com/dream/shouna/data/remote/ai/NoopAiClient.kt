@@ -16,5 +16,9 @@ import javax.inject.Singleton
 @Singleton
 class NoopAiClient @Inject constructor() : AiClient {
 
-    override suspend fun parse(request: AiRequest, apiKey: String): List<AiDraft>? = null
+    override suspend fun parse(
+        request: AiRequest,
+        apiKey: String,
+        onUsage: (Int) -> Unit,
+    ): List<AiDraft>? = null
 }

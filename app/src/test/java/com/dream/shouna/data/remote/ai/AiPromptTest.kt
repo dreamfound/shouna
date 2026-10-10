@@ -65,6 +65,52 @@ class AiPromptTest {
     }
 
     @Test
+    fun system_voiceInput_hasOwnSectionAndKeepsLocations() {
+        // 用户 2026-10-09 口径：语音页**不再**复用文字通道的功能段，且有自己的一句
+        //「这是一段语音转文字」。
+        val voice = AiPrompt.system(AiScene.VOICE_INPUT, categories, locations)
+        val text = AiPrompt.system(AiScene.TEXT_INPUT, categories, locations)
+
+        assertThat(voice).isNotEqualTo(text)
+        assertThat(voice).contains("这是一段语音转文字")
+        assertThat(voice).contains("可能同时提到不止一件东西")
+        assertThat(voice).doesNotContain("照片")
+        // 位置仍由模型从这句话里给出（本地不新建）：与照片场景的「一律 null」正好相反 ——
+        // 位置树按缩进逐层渲染，故断言层名而不是整条路径。
+        assertThat(voice).contains("已有位置")
+        assertThat(voice).contains("抽屉")
+        assertThat(voice).doesNotContain("位置由用户事先指定")
+    }
+
+    // 【2026-10-10 停用 · 注释保留】录音场景（`AiScene.VOICE_AUDIO`）的两条用例 —— 平台不受理
+    // 音频输入，该场景连同整条录音链路一并注释。恢复时去掉下面各行行首的 `// ` 即可：
+    //
+    // @Test
+    // fun system_voiceAudio_hasOwnSectionAndKeepsLocations() {
+    //     // 2026-10-10：录音通道（P-VOICE-AI 换的新输入形态）有自己的功能段，措辞必须点明
+    //     // 「这是一段录音」—— 否则模型会等一句「文字输入」，对着音频不知所云。
+    //     val audio = AiPrompt.system(AiScene.VOICE_AUDIO, categories, locations)
+    //
+    //     assertThat(audio).contains("这是一段用户说话的录音")
+    //     assertThat(audio).contains("可能同时提到不止一件东西")
+    //     assertThat(audio).doesNotContain("语音转文字")
+    //     // 位置口径与语音句通道相同（只能从听到的内容里来、本地不新建）：仍附位置清单，
+    //     // 与照片场景的「一律 null」正好相反。
+    //     assertThat(audio).contains("已有位置")
+    //     assertThat(audio).contains("抽屉")
+    //     assertThat(audio).doesNotContain("位置由用户事先指定")
+    // }
+    //
+    // @Test
+    // fun system_voiceAudio_allowsLocationPathArray() {
+    //     // 录音通道的位置规则走「从根到叶数组」那一支（不是照片场景的「一律填 null」）。
+    //     val audio = AiPrompt.system(AiScene.VOICE_AUDIO, categories, locations)
+    //
+    //     assertThat(audio).contains("从根到叶逐层分段的字符串数组")
+    //     assertThat(audio).doesNotContain("location_path：一律填 null")
+    // }
+
+    @Test
     fun system_queryScene_hasNoSceneSection() {
         // V2-AI-PRD §7：本版不引入 AI 查询 ⇒ 没有功能段文案（等三个问句有答案再补）。
         val query = AiPrompt.system(AiScene.QUERY, categories, locations)

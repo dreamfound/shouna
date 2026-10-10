@@ -14,9 +14,9 @@ import org.junit.Test
  * AI 单测（纯 JVM，不触网）：唯一闸门的放行判定 + **缓存键口径**。
  *
  * 闸门是「成本可控」与「隐私」共用的那一道口子，因此每条拦截都要钉住：**拦下时必须零调用**。
- * 缓存键单列一组用例 —— 键里漏掉场景、位置清单或**图片**属**静默错误**：结果看着正常，实际张冠李戴。
- * 图片这一项尤其隐蔽：两张不同的照片若文字输入都为空，只按输入建键必然撞键，用户会拿到上一张图的
- * 识别结果。
+ * 缓存键单列一组用例 —— 键里漏掉场景、位置清单、**图片**或**音频**属**静默错误**：结果看着正常，
+ * 实际张冠李戴。图片与音频这两项尤其隐蔽：两张不同的照片 / 两段不同的录音，其文字输入都为空，
+ * 只按输入建键必然撞键，用户会拿到上一张图 / 上一段录音的识别结果。
  */
 class AiGateTest {
 
@@ -28,12 +28,14 @@ class AiGateTest {
         categories: List<String> = emptyList(),
         locations: List<String> = emptyList(),
         image: String? = null,
+        // 【2026-10-10 停用 · 注释保留】录音通道的入参：`audio: String? = null,`
     ) = AiRequest(
         input = input,
         scene = scene,
         categoryNames = categories,
         locationPaths = locations,
         imageBase64 = image,
+        // 【2026-10-10 停用 · 注释保留】`audioBase64 = audio,`
     )
 
     @Test
@@ -72,7 +74,7 @@ class AiGateTest {
     }
 
     @Test
-    fun run_sameInputTwice_hitsCacheAndBillsOnce() = runTest {
+    fun run_sameInputTwice_hitsCache_butUsageCountsBothTimes() = runTest {
         val client = CountingAiClient(drafts)
         val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
         val gate = AiGate(client, settings)
@@ -80,9 +82,9 @@ class AiGateTest {
         assertThat(gate.run(request("充电器", categories = listOf("电子配件", "杂物")))).isEqualTo(drafts)
         assertThat(gate.run(request("充电器", categories = listOf("杂物", "电子配件")))).isEqualTo(drafts)
 
-        // 名单顺序变了也算同一次（键先归一化再排序）。
+        // 名单顺序变了也算同一次（键先归一化再排序）⇒ 只真调一次；但**两次都计用量**（命中缓存也计）。
         assertThat(client.calls).isEqualTo(1)
-        assertThat(settings.usage).isEqualTo(1)
+        assertThat(settings.usage).isEqualTo(2)
     }
 
     @Test
@@ -141,7 +143,7 @@ class AiGateTest {
 
     @Test
     fun run_samePhotoTwice_hitsCache() = runTest {
-        // 反面：**同一张**图重试不该重复计费（用户点两次按钮是常态）。
+        // 反面：**同一张**图重试只真调一次（用户点两次按钮是常态）；但两次都计用量（命中缓存也计）。
         val client = CountingAiClient(drafts)
         val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
         val gate = AiGate(client, settings)
@@ -150,7 +152,54 @@ class AiGateTest {
         gate.run(request("", scene = AiScene.PHOTO_INPUT, image = "IMG-A"))
 
         assertThat(client.calls).isEqualTo(1)
+        assertThat(settings.usage).isEqualTo(2)
     }
+
+    // 【2026-10-10 停用 · 注释保留】录音通道（`AiScene.VOICE_AUDIO`）的三条用例 —— 平台不受理
+    // 音频输入，随整条录音链路一并注释。恢复时去掉下面各行行首的 `// ` 即可：
+    //
+    // @Test
+    // fun run_differentAudioRecords_callAgain() = runTest {
+    //     // 录音通道的 `input` 恒为空（那句默认指令由网络层补、不进 AiRequest）—— 键里若不含
+    //     // 音频指纹，第二段录音必然命中第一段的缓存，用户拿到上一段录音的识别结果，而界面
+    //     // 看不出任何异常。（与「换照片」同一条理由。）
+    //     val client = CountingAiClient(drafts)
+    //     val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
+    //     val gate = AiGate(client, settings)
+    //
+    //     gate.run(request("", scene = AiScene.VOICE_AUDIO, audio = "AUDIO-A"))
+    //     gate.run(request("", scene = AiScene.VOICE_AUDIO, audio = "AUDIO-B"))
+    //
+    //     assertThat(client.calls).isEqualTo(2)
+    //     assertThat(settings.usage).isEqualTo(2)
+    // }
+    //
+    // @Test
+    // fun run_sameAudioTwice_hitsCache() = runTest {
+    //     // 反面：**同一段**音频重试只真调一次（用户重按一遍是常态）；但两次都计用量（命中缓存也计）。
+    //     val client = CountingAiClient(drafts)
+    //     val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
+    //     val gate = AiGate(client, settings)
+    //
+    //     gate.run(request("", scene = AiScene.VOICE_AUDIO, audio = "AUDIO-A"))
+    //     gate.run(request("", scene = AiScene.VOICE_AUDIO, audio = "AUDIO-A"))
+    //
+    //     assertThat(client.calls).isEqualTo(1)
+    //     assertThat(settings.usage).isEqualTo(2)
+    // }
+    //
+    // @Test
+    // fun run_voiceAudioWithoutAudio_doesNotCallClient() = runTest {
+    //     // 录音场景没有音频 = 缺必需内容，拦在闸门（零调用），不浪费一次必然失败的往返。
+    //     // 与照片场景的「缺图」同一处置。
+    //     val client = CountingAiClient(drafts)
+    //     val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
+    //
+    //     assertThat(
+    //         AiGate(client, settings).run(request("", scene = AiScene.VOICE_AUDIO)),
+    //     ).isNull()
+    //     assertThat(client.calls).isEqualTo(0)
+    // }
 
     @Test
     fun run_photoWithoutImage_doesNotCallClient() = runTest {
@@ -187,6 +236,7 @@ class AiGateTest {
         )
 
         assertThat(client.calls).isEqualTo(1)
+        assertThat(settings.usage).isEqualTo(2)
     }
 
     @Test
@@ -210,6 +260,49 @@ class AiGateTest {
     }
 
     @Test
+    fun run_providerReportsUsage_accumulatesTokenTotal() = runTest {
+        // 供应商回报 `usage.total_tokens` ⇒ 与次数同处累加（设置页的「共消耗」）。
+        val client = CountingAiClient(drafts, usageTokens = 120)
+        val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
+
+        AiGate(client, settings).run(request("充电器"))
+
+        assertThat(settings.usage).isEqualTo(1)
+        assertThat(settings.tokens).isEqualTo(120)
+    }
+
+    @Test
+    fun run_providerOmitsUsage_countsOnlyWithoutInventingTokens() = runTest {
+        // 没回报 ⇒ 只计次数、token 保持 0（不凑一个假数）；**命中缓存同理**：只 +1 次数。
+        val client = CountingAiClient(drafts, usageTokens = null)
+        val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
+        val gate = AiGate(client, settings)
+
+        gate.run(request("充电器"))
+        gate.run(request("充电器")) // 命中缓存
+
+        assertThat(client.calls).isEqualTo(1)
+        assertThat(settings.usage).isEqualTo(2)
+        assertThat(settings.tokens).isEqualTo(0)
+    }
+
+    @Test
+    fun run_cacheHit_alsoCountsUsage_andAddsTokensAgain() = runTest {
+        // **2026-10-09 用户定：命中缓存也要计** —— 次数 +1，token 按该条首次调用量**再累加一次**
+        // ⇒「共消耗」是「AI 产出量」口径（同一结果被重放也照算），**高于**供应商账单。
+        val client = CountingAiClient(drafts, usageTokens = 80)
+        val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
+        val gate = AiGate(client, settings)
+
+        gate.run(request("充电器", categories = listOf("电子配件")))
+        gate.run(request("充电器", categories = listOf("电子配件")))
+
+        assertThat(client.calls).isEqualTo(1) // 只真调一次
+        assertThat(settings.usage).isEqualTo(2) // 但用量计两次
+        assertThat(settings.tokens).isEqualTo(160) // 80 × 2
+    }
+
+    @Test
     fun run_blankInput_doesNotCallClient() = runTest {
         val client = CountingAiClient(drafts)
         val settings = FakeAiSettings(enabled = true, apiKey = "sk-test")
@@ -219,15 +312,24 @@ class AiGateTest {
     }
 
     /** 假 client：只记调用次数与入参，不出网。 */
-    private class CountingAiClient(private val result: List<AiDraft>?) : AiClient {
+    private class CountingAiClient(
+        private val result: List<AiDraft>?,
+        /** 模拟供应商回报的 token 合计；`null` = 不回报（`onUsage` 不触发）。 */
+        private val usageTokens: Int? = null,
+    ) : AiClient {
         var calls: Int = 0
         var lastApiKey: String? = null
         var lastRequest: AiRequest? = null
 
-        override suspend fun parse(request: AiRequest, apiKey: String): List<AiDraft>? {
+        override suspend fun parse(
+            request: AiRequest,
+            apiKey: String,
+            onUsage: (Int) -> Unit,
+        ): List<AiDraft>? {
             calls++
             lastApiKey = apiKey
             lastRequest = request
+            usageTokens?.let(onUsage)
             return result
         }
     }
@@ -238,6 +340,7 @@ class AiGateTest {
         var apiKey: String?,
     ) : AiSettingsRepository {
         var usage: Int = 0
+        var tokens: Int = 0
 
         override fun observeEnabled(): Flow<Boolean> = flowOf(enabled)
         override suspend fun isEnabled(): Boolean = enabled
@@ -254,8 +357,11 @@ class AiGateTest {
         }
 
         override fun observeUsageCount(): Flow<Int> = flowOf(usage)
-        override suspend fun countUsage() {
+        override fun observeUsageTokens(): Flow<Int> = flowOf(tokens)
+        override suspend fun countUsage(tokens: Int?) {
             usage++
+            // 与真实实现同口径：没回报（null）就不动 token。
+            if (tokens != null) this.tokens += tokens
         }
     }
 }

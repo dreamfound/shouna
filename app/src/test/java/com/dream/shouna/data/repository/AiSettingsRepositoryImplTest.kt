@@ -81,11 +81,18 @@ class AiSettingsRepositoryImplTest {
     @Test
     fun countUsage_accumulatesAndIsObservable() = runTest {
         assertThat(repository.observeUsageCount().first()).isEqualTo(0)
+        assertThat(repository.observeUsageTokens().first()).isEqualTo(0)
 
-        repeat(3) { repository.countUsage() }
+        // 三次有回报（每次 100）+ 一次没回报（只计次数）+ 一次 50。
+        repeat(3) { repository.countUsage(tokens = 100) }
+        repository.countUsage()
+        repository.countUsage(tokens = 50)
 
-        assertThat(repository.observeUsageCount().first()).isEqualTo(3)
-        assertThat(dao.snapshot()[AiSettingsRepository.KEY_USAGE_COUNT]).isEqualTo("3")
+        assertThat(repository.observeUsageCount().first()).isEqualTo(5)
+        assertThat(dao.snapshot()[AiSettingsRepository.KEY_USAGE_COUNT]).isEqualTo("5")
+        // token 只累加有回报的三次：100×3 + 50 = 350；那次 null 不加、也不补 0。
+        assertThat(repository.observeUsageTokens().first()).isEqualTo(350)
+        assertThat(dao.snapshot()[AiSettingsRepository.KEY_USAGE_TOKENS]).isEqualTo("350")
     }
 
     @Test

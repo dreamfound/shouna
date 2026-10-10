@@ -24,6 +24,14 @@ interface AiClient {
      *   `null` = 本次调用**没成功**（未配置 / 网络失败 / 响应不可解析）；
      *   **空列表** = 调用成功但**一件都没识别出**。两者都走人工回退，但语义不同，调用方
      *   若要区分「AI 没开」与「AI 没看出东西」，靠的就是这个差别。
+     *
+     * @param onUsage 供应商回报的 token **合计**（`usage.total_tokens`）；没回报就不调。只在
+     *   **真的发出去并拿到响应**的那一次触发 —— 缓存命中根本不经过本方法。用「顺带回报」而不改
+     *   返回类型：既有调用方与既有单测**零改动**（2026-10-09，取最简形态）。
      */
-    suspend fun parse(request: AiRequest, apiKey: String): List<AiDraft>?
+    suspend fun parse(
+        request: AiRequest,
+        apiKey: String,
+        onUsage: (Int) -> Unit = {},
+    ): List<AiDraft>?
 }

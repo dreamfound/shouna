@@ -50,6 +50,7 @@ fun SettingsRoute() {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val aiEnabled by viewModel.aiEnabled.collectAsStateWithLifecycle()
     val aiUsageCount by viewModel.aiUsageCount.collectAsStateWithLifecycle()
+    val aiUsageTokens by viewModel.aiUsageTokens.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
 
     LaunchedEffect(Unit) {
@@ -60,6 +61,7 @@ fun SettingsRoute() {
         uiState = uiState,
         aiEnabled = aiEnabled,
         aiUsageCount = aiUsageCount,
+        aiUsageTokens = aiUsageTokens,
         onThresholdSelected = viewModel::onThresholdSelected,
         onCategoryManageClick = { navController.goCategoryManage() },
         onAiEnabledChanged = viewModel::onAiEnabledChanged,
@@ -90,6 +92,7 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     aiEnabled: Boolean,
     aiUsageCount: Int,
+    aiUsageTokens: Int,
     onThresholdSelected: (Int) -> Unit,
     onCategoryManageClick: () -> Unit,
     onAiEnabledChanged: (Boolean) -> Unit,
@@ -152,6 +155,7 @@ fun SettingsScreen(
         AiSection(
             aiEnabled = aiEnabled,
             aiUsageCount = aiUsageCount,
+            aiUsageTokens = aiUsageTokens,
             aiHasApiKey = uiState.aiHasApiKey,
             onAiEnabledChanged = onAiEnabledChanged,
             onApiKeySubmitted = onApiKeySubmitted,
@@ -197,6 +201,7 @@ fun SettingsScreen(
 private fun AiSection(
     aiEnabled: Boolean,
     aiUsageCount: Int,
+    aiUsageTokens: Int,
     aiHasApiKey: Boolean,
     onAiEnabledChanged: (Boolean) -> Unit,
     onApiKeySubmitted: (String) -> Unit,
@@ -268,7 +273,7 @@ private fun AiSection(
             .padding(top = 6.dp),
     )
     Text(
-        text = stringResource(R.string.settings_ai_usage, aiUsageCount),
+        text = stringResource(R.string.settings_ai_usage, aiUsageCount, aiUsageTokens),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth(),

@@ -169,6 +169,10 @@ class FakeItemDao : ItemDao {
             transform = { it.copy(photoPath = photoPath) },
         )
 
+    /** V2-FR-11：指向同一照片文件名的记录数（等价于 SQL 的 `COUNT(*) WHERE photo_path = :photoName`）。 */
+    override suspend fun countByPhotoPath(photoName: String): Int =
+        rows.value.count { it.photoPath == photoName }
+
     /**
      * `location.id → location.path`（ID 序列路径）。假的 `item` 表无法 join `location`，
      * 故由测试显式给出；[idsInSubtree] 用它复现真实 SQL 的区间语义。

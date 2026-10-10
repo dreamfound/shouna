@@ -139,6 +139,15 @@ interface ItemRepository {
     suspend fun setPhoto(itemId: String, photoName: String?): StoredItem?
 
     /**
+     * V2-FR-11（2026-10-09）：**还有几条记录指向这个照片文件名**。
+     *
+     * 拍照 AI 录入产出的 N 条记录共用同一个照片文件（[setPhoto] 与 [createItemQuick] 存的是文件名），
+     * 所以删除文件之前必须先判引用 —— 否则「删这一条的照片」会把其余记录的照片一并弄成破图。
+     * 调用方（详情页 / 编辑页）在**清库之前**问一次：结果 `<= 1` 才是最后一个引用者。
+     */
+    suspend fun countByPhotoName(photoName: String): Int
+
+    /**
      * P1-03（C-1 第一块）：物品总数 = 非 `gone`（即 `in_storage` + `to_be_put_back`）。
      */
     fun observeActiveItemCount(): Flow<Int>

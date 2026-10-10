@@ -10,6 +10,7 @@ import java.util.zip.Deflater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
+import org.junit.AfterClass
 import org.junit.Assume
 import org.junit.Test
 
@@ -21,6 +22,9 @@ import org.junit.Test
  * 因此它**默认跳过**：只有拿到密钥时才跑（`Assume` 不成立 → JUnit 记为 skipped，不会让常规
  * `./gradlew testDebugUnitTest` 变红，也不需要 CI 提供网络与凭据）。
  *
+ * ⚠️ **但在本机它不会跳过**（`key/dafeiyu.txt` 在位）：跑之前先读 `docs/测试须知.md` ——
+ * 未经用户同意不得做 AI 能力测试，那条规则与「怎么跑才不花钱」都写在那份文档里。
+ *
  * 密钥来源（按优先级，**任何一个都不打印、不落库**）：
  * 1. JVM 系统属性 `-Dshouna.ai.key=...`
  * 2. 环境变量 `SHOUNA_AI_KEY`
@@ -28,6 +32,9 @@ import org.junit.Test
  * 4. 仓库根 `key/dafeiyu.txt`（已 `.gitignore`）
  *
  * 跑法：`./gradlew :app:testDebugUnitTest --tests '*AiLiveSmokeTest*' -i`
+ *
+ * 每例会打印**本次** token 用量（`usage.total_tokens`；没回报就明说），类跑完再打印一次合计
+ * —— 与设置页的「共消耗」同口径，便于核对一次冒烟的实际开销。
  */
 class AiLiveSmokeTest {
 
@@ -52,11 +59,13 @@ class AiLiveSmokeTest {
         }
         val elapsedMs = System.currentTimeMillis() - startedAt
 
-        val reply = response.body
-            ?.let { runCatching { AiJson.decodeFromString<ChatResponse>(it).contentOrNull() }.getOrNull() }
+        val decoded = response.body
+            ?.let { runCatching { AiJson.decodeFromString<ChatResponse>(it) }.getOrNull() }
+        val reply = decoded?.contentOrNull()
         println("[AI 冒烟] POST ${vendor.endpoint} model=${vendor.model}")
         println("[AI 冒烟] HTTP ${response.code} 耗时 ${elapsedMs}ms")
         println("[AI 冒烟] 发送「你好」→ 返回「$reply」")
+        recordUsage("你好", decoded?.usage?.totalTokens)
 
         assertThat(response.code).isEqualTo(200)
         assertThat(reply).isNotNull()
@@ -86,11 +95,13 @@ class AiLiveSmokeTest {
                 AiPrompt.system(request.scene, request.categoryNames, request.locationPaths),
         )
 
-        val drafts = runBlocking { client.parse(request, apiKey) }
+        var usedTokens: Int? = null
+        val drafts = runBlocking { client.parse(request, apiKey) { usedTokens = it } }
 
         println("[AI 冒烟] 分类名单：$categories")
         println("[AI 冒烟] 位置清单（调用方原文）：$locations")
         println("[AI 冒烟] 结构化结果：$drafts")
+        recordUsage("一句话", usedTokens)
 
         assertThat(drafts).isNotNull()
         assertThat(drafts).isNotEmpty()
@@ -134,12 +145,14 @@ class AiLiveSmokeTest {
         )
         println("[AI 冒烟·照片] 图片 base64 长度 = ${image.length}")
 
+        var usedTokens: Int? = null
         val startedAt = System.currentTimeMillis()
-        val drafts = runBlocking { client.parse(request, apiKey) }
+        val drafts = runBlocking { client.parse(request, apiKey) { usedTokens = it } }
         val elapsedMs = System.currentTimeMillis() - startedAt
 
         println("[AI 冒烟·照片] 耗时 ${elapsedMs}ms，识别出 ${drafts?.size ?: -1} 件")
         drafts?.forEach { println("[AI 冒烟·照片]   $it") }
+        recordUsage("照片", usedTokens)
 
         assertThat(drafts).isNotNull()
         // V2-FR-13：位置由用户自己设 ⇒ 模型返回的每一条都不得带位置。
@@ -161,19 +174,64 @@ class AiLiveSmokeTest {
         }
         return candidates.firstOrNull { it.isFile }
             ?.readText()
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
+            ?.let(::extractKey)
     }
 
     private fun systemProperty(name: String): String? =
-        (System.getProperty(name) ?: System.getenv(name))?.trim()?.takeIf { it.isNotEmpty() }
+        (System.getProperty(name) ?: System.getenv(name))?.let(::extractKey)
 
-    private companion object {
+    /**
+     * 从一段文本里取出密钥：**跳过 `//` 注释行**，取第一条非空内容行，去掉首尾空白。
+     *
+     * 【为什么需要】`key/dafeiyu.txt` 允许把「本轮是否允许真调」写在文件里 —— 首行 `//禁止使用`
+     * 是**人看的自锁标记**（`key/` 已 `.gitignore`，不进库）。若直接 `trim()` 整段文本，会把
+     * 标记与密钥粘成一个字符串（`//禁止使用\n<token>`）当作 `Bearer` 发出去 ⇒ 必然非 2xx，
+     * 看起来像「通道坏了」而其实是**标记没有被识别**（2026-10-09 定位）。
+     *
+     * 因此这里统一走一个入口：`//` 开头的行一律无视，只认第一条内容行。这样文件里
+     * **留标记** 与 **能跑通** 不再互斥 —— 想放开真调，改那一行标记即可，不必删文件。
+     */
+    private fun extractKey(raw: String): String? = raw.lineSequence()
+        .map { it.trim() }
+        .firstOrNull { it.isNotEmpty() && !it.startsWith("//") }
+        ?.takeIf { it.isNotEmpty() }
+
+    /**
+     * 记录并打印**本次**调用的 token 用量（供应商没回报就明说），并累加成合计。
+     * 合计在类跑完时由 [reportTotalUsage] 打印 —— 一次真调冒烟到底花掉多少 token，一眼可核。
+     * 与设置页的「共消耗」同口径：只累加供应商回报了 `usage` 的那些次。
+     */
+    private fun recordUsage(label: String, tokens: Int?) {
+        if (tokens == null) {
+            println("[AI 冒烟·用量] $label → 供应商未回报 usage")
+            return
+        }
+        billedCalls += 1
+        billedTokens += tokens
+        println(
+            "[AI 冒烟·用量] $label → 本次 $tokens tokens（累计 $billedCalls 次 / $billedTokens tokens）",
+        )
+    }
+
+    companion object {
         const val KEY_SYSTEM_PROPERTY = "shouna.ai.key"
         const val KEY_ENV = "SHOUNA_AI_KEY"
         const val KEY_FILE_ENV = "SHOUNA_AI_KEY_FILE"
         const val KEY_HINT =
             "未找到 API Key（-Dshouna.ai.key / SHOUNA_AI_KEY / SHOUNA_AI_KEY_FILE / key/dafeiyu.txt），跳过真调冒烟"
+
+        /** 本类真调过、且供应商回报了 `usage` 的累计（没回报的不计）。 */
+        private var billedCalls = 0
+        private var billedTokens = 0
+
+        /** 跑完整个类打印一次合计；全部被 `Assume` 跳过时不打印。 */
+        @AfterClass
+        @JvmStatic
+        fun reportTotalUsage() {
+            if (billedCalls > 0) {
+                println("[AI 冒烟·用量] 本次冒烟合计 $billedCalls 次 · $billedTokens tokens")
+            }
+        }
     }
 }
 

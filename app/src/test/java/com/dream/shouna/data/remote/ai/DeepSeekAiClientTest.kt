@@ -8,10 +8,11 @@ import org.junit.Test
  * AI 单测（纯 JVM，**不触网**）：[DeepSeekAiClient] 的请求组装与响应折叠。
  *
  * 这就是「传输接口化」换来的可测性 —— 真网络只留给 `AiLiveSmokeTest` 的冒烟用例。
- * 断言五件：密钥进 `Authorization`、**提示词四段按固定顺序拼出**、分类与位置清单进上下文段、
+ * 断言六件：密钥进 `Authorization`、**提示词四段按固定顺序拼出**、分类与位置清单进上下文段、
  * `response_format` 被要求为 json_object、**照片通道发的是多模态 content 数组且不附位置段**
- * （`V2-FR-11` / `V2-FR-13`）；以及失败路径（非 2xx / 非 JSON / 空正文 / 空密钥 / 缺必需内容 /
- * 本版不支持的场景）一律返 null 且不发请求。
+ * （`V2-FR-11` / `V2-FR-13`）、**录音通道发的是 `[text, input_audio]` 数组且音频不带 `data:` 前缀**
+ * （`V2-FR-10` 的录音形态，2026-10-10）；以及失败路径（非 2xx / 非 JSON / 空正文 / 空密钥 /
+ * 缺必需内容 / 本版不支持的场景）一律返 null 且不发请求。
  */
 class DeepSeekAiClientTest {
 
@@ -24,12 +25,14 @@ class DeepSeekAiClientTest {
         categories: List<String> = emptyList(),
         locations: List<String> = emptyList(),
         image: String? = null,
+        // 【2026-10-10 停用 · 注释保留】录音通道的入参：`audio: String? = null,`
     ) = AiRequest(
         input = input,
         scene = scene,
         categoryNames = categories,
         locationPaths = locations,
         imageBase64 = image,
+        // 【2026-10-10 停用 · 注释保留】`audioBase64 = audio,`
     )
 
     @Test
@@ -143,6 +146,53 @@ class DeepSeekAiClientTest {
         assertThat(drafts).hasSize(2)
         assertThat(drafts!!.map { it.name }).containsExactly("杯子", "书").inOrder()
     }
+
+    // 【2026-10-10 停用 · 注释保留】录音场景（`[text, input_audio]` 数组、音频裸 base64）的两条
+    // 用例 —— 平台不受理音频输入，随整条录音链路一并注释。恢复时去掉下面各行行首的 `// ` 即可：
+    //
+    // @Test
+    // fun parse_voiceAudioScene_sendsInputAudioArrayWithoutDataUrlPrefix() = runTest {
+    //     // 录音通道（V2-FR-10 的录音形态，2026-10-10）：content 必须是 `[text, input_audio]` 数组，
+    //     // 且音频是**裸 base64** —— 与图片那条「必须带 data URL 前缀」**正好相反**。这条写反了
+    //     // 不会报错，只会让供应商取不出音频（表现为「一件都没识别出」），故必须钉住。
+    //     val http = RecordingAiHttp(AiHttpResponse(200, SUCCESS_BODY))
+    //     val client = DeepSeekAiClient(http, vendor)
+    //
+    //     val drafts = client.parse(
+    //         request(
+    //             input = "",
+    //             scene = AiScene.VOICE_AUDIO,
+    //             categories = categories,
+    //             locations = listOf("家 › 客厅"),
+    //             audio = "QUJD",
+    //         ),
+    //         "sk-test",
+    //     )
+    //
+    //     assertThat(http.calls).isEqualTo(1)
+    //     val body = http.lastBody!!
+    //     assertThat(body).contains("\"input_audio\"")
+    //     assertThat(body).contains("\"data\":\"QUJD\"")
+    //     assertThat(body).contains("\"format\":\"wav\"")
+    //     // 音频**不得**带任何 data URL 前缀（那是图片那一条的形态）。
+    //     assertThat(body).doesNotContain("data:audio")
+    //     assertThat(body).doesNotContain("data:image")
+    //     // text 槽不能空着，故补一句默认指令（见 DeepSeekAiClient 的 AUDIO_INSTRUCTION）。
+    //     assertThat(body).contains("请把这段录音里提到的物品逐条登记出来")
+    //     // 位置清单照附 —— 录音通道的位置只能从听到的内容里来（本地不新建）。
+    //     assertThat(body).contains("已有位置")
+    //     assertThat(drafts).hasSize(1)
+    // }
+    //
+    // @Test
+    // fun parse_voiceAudioSceneWithoutAudio_doesNotCallNetwork() = runTest {
+    //     // 录音场景没给音频 → 不发必然失败的请求（与照片场景的「缺图」同一处置）。
+    //     val http = RecordingAiHttp(AiHttpResponse(200, SUCCESS_BODY))
+    //     val client = DeepSeekAiClient(http, vendor)
+    //
+    //     assertThat(client.parse(request("", scene = AiScene.VOICE_AUDIO), "sk-test")).isNull()
+    //     assertThat(http.calls).isEqualTo(0)
+    // }
 
     @Test
     fun parse_photoSceneWithoutImageOrQueryScene_doesNotCallNetwork() = runTest {

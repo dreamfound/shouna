@@ -233,7 +233,14 @@ class ItemEditViewModel @Inject constructor(
             if (updated != null) {
                 loaded = updated
                 // 只有真的换了 / 移除了照片才有旧文件要删；保存成功之前一律不删（见 PhotoInputRow 注释）。
-                saved.emit(ItemEditSaved(obsoletePhotoName = original.photoPath.takeIf { photoChanged }))
+                //
+                // 【V2-FR-11（2026-10-09）：旧文件不一定只属于这一条】拍照 AI 录入产出的多件记录
+                // 共用同一个照片文件，故还要看**保存之后**的计数：本条的 `photo_path` 此刻已改指新图
+                // （或已置空），计数为 0 才说明旧文件成了孤儿、才该删；否则留给还在用它的记录。
+                val obsoletePhotoName = original.photoPath
+                    ?.takeIf { photoChanged }
+                    ?.takeIf { itemRepository.countByPhotoName(it) == 0 }
+                saved.emit(ItemEditSaved(obsoletePhotoName = obsoletePhotoName))
             }
         }
     }

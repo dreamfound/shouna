@@ -10,7 +10,7 @@
     <string name="settings_ai_key_save">保存</string>
     <string name="settings_ai_key_missing">尚未配置密钥</string>
     <string name="settings_ai_key_present">已配置密钥（只写入，不回显）</string>
-    <string name="settings_ai_usage">本周期已用 %1$d 次</string>
+    <string name="settings_ai_usage">本周期已调用 %1$d 次 · 共消耗 %2$d tokens</string>
     <string name="settings_ai_privacy">仅在开关开启时，你主动提交的那句话、位置名称清单、已有分类名称，以及你主动发起识别的那张照片，会发往你配置的 AI 服务商。物品数据永不出设备。</string>
     <string name="settings_privacy_body">数据仅保存在本机，不提供备份与迁移通道，卸载应用或更换设备即永久丢失且不可恢复。核心的录入、查找与浏览功能完全离线可用。</string>
 
@@ -34,21 +34,60 @@
     <string name="ai_card_action_dismiss">忽略</string>
     <!-- 位置树里还没有这一层：只在卡片上标出来，点「填入 / 全部记下」后才真的逐层新建。 -->
     <string name="ai_card_location_pending">%1$s（待新建）</string>
-    <!-- 一行位置线索都没有（首页通道才会出现）：明说它不会被记下，别让用户白勾一次。 -->
+    <!-- 一行位置线索都没有时明说它不会被记下，别让用户白勾一次。
+         2026-10-09 起只有录入页的确认卡会用到它（首页语音通道撤了；语音独立页的弹窗另有
+         ai_item_location_missing，那一处位置可改、补上即可确认）。 -->
     <string name="ai_card_location_missing">缺位置，不会被记录</string>
     <string name="ai_card_no_fields">没有其他可填的字段</string>
 
-    <!-- V2 首页语音入口（V2-FR-10）：按钮只在 AI 总开关开启时出现；说完直接出确认卡。 -->
-    <string name="ai_home_voice_entry">🎤 说一句</string>
+    <!-- V2 首页语音入口（V2-FR-10）：按钮只在 AI 总开关开启时出现。
+         2026-10-09 起入口**只做导航** —— 语音句录入已独立成页（ui/screen/voiceai/），
+         与拍照通道同一种记录方式，按钮文案也据此与「📷 拍照AI记」对仗。 -->
+    <string name="ai_home_voice_entry">🎤 语音AI记</string>
+    <!-- 落库汇总：两条通道（语音 / 拍照）的独立页面共用这两句。 -->
     <string name="ai_home_saved">已记下 %1$d 件</string>
     <string name="ai_home_unsaved">另有 %1$d 件没记下</string>
 
-    <!-- V2 首页拍照入口（V2-FR-11 / 13）：位置先定后用 —— 位置条排在最前，未选位置则识别按钮不可点。 -->
+    <!-- V2 语音 AI 录入页（V2-FR-10，2026-10-09 独立成页）。
+         页内只有话筒 + 状态行 + 汇总，位置由那句话决定，故这里没有位置条与「识别」按钮。
+         「把位置一起说出来」要有，否则模型无从解析、只能落到最近的已存在祖先或让用户补。 -->
+    <string name="voice_ai_title">语音AI记</string>
+    <string name="voice_ai_hint">说一句，把位置一起说出来，例如「客厅抽屉里的充电器」</string>
+    <string name="voice_ai_disabled">AI 已关闭，请到设置页重新打开</string>
+    <string name="voice_grant_permission">授予录音权限</string>
+
+    <!-- V2 拍照 AI 录入页（V2-FR-11 / 13）：首页入口按钮 + 独立页面内的一段。
+         位置先定后用 —— 位置条排在最前，未选位置则识别按钮不可点。
+         该流程已从「首页页内面板」独立成页（ui/screen/photoai/），故不再有「收起」这类面板动作文案。 -->
     <string name="ai_home_photo_entry">📷 拍照AI记</string>
-    <string name="ai_home_photo_title">拍照AI记</string>
+    <string name="photo_ai_title">拍照AI记</string>
     <string name="ai_home_photo_location">位置：%1$s</string>
     <string name="ai_home_photo_location_empty">选择位置（必填）</string>
     <string name="ai_home_photo_need_photo">先拍一张，或从相册选一张</string>
     <string name="ai_home_photo_recognize">识别</string>
-    <string name="ai_home_photo_collapse">收起</string>
+
+    <!-- V2 逐条确认弹窗（V2-FR-11 起，2026-10-09 起语音通道也用）。
+         一次只弹一件：确认 = 记下这一件，放弃 = 跳过这一件，关闭 = 放弃本次录入。
+         位置行的三种形态由 AiItemEdit 的归属决定：
+         - 正常命中 → ai_item_location；
+         - 语音通道降级到更浅的祖先 → ai_item_location_nearby（必须明说，否则用户以为模型认错了）；
+         - 一个位置线索都没有 → ai_item_location_missing（错误色；补一个位置即可确认）。
+          位置**可不可改**由页面传的 locationEditable 决定：语音 true（位置是模型猜的）、拍照 false。
+
+         位置选择态（语音通道专有、弹窗里铺开位置树那一屏）**换一套按钮**：只留「取消」（退回表单），
+         「确认 / 放弃」与右上角「关闭」都隐去 —— 那两个动作属于整件，拿来结束「挑位置」会误导
+         （用户 2026-10-10：「没有取消，共用一个按钮，这不对」）。 -->
+    <string name="ai_item_dialog_title">确认第 %1$d / %2$d 件</string>
+    <string name="ai_item_action_confirm">确认</string>
+    <string name="ai_item_action_discard">放弃</string>
+    <string name="ai_item_action_close">关闭</string>
+    <string name="ai_item_action_cancel">取消</string>
+    <string name="ai_item_field_name">名称</string>
+    <string name="ai_item_field_category">分类</string>
+    <string name="ai_item_field_note">备注</string>
+    <string name="ai_item_location">位置：%1$s</string>
+    <string name="ai_item_location_nearby">位置：%1$s（原说「%2$s」不存在，已就近）</string>
+    <string name="ai_item_location_missing">缺位置，点这里选一个</string>
+    <string name="ai_item_location_pick_title">为「%1$s」选择位置</string>
+    <string name="ai_item_location_change">改</string>
 </resources>

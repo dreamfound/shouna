@@ -6,9 +6,11 @@
 
 **一句话结论**：P2 只做三件事 —— 给 `item` 加一个 `deleted_at` 列实现**软删除**（90 天后由 App 打开时清理）、把**「已不在」与「已删除」合到同一页回收站**、把录入页已有的「已连续录入 N 件」那一行**变成批量改分类的入口**。迁移 `version 3 → 4` **仅 +1 列**。
 
-**与 P1 的关系（读前必看）**：P1 已交付位置树深化、归纳统计页、物品编辑页、分类管理、设置页，`version = 3`、5 张表、`ItemRepository` / `LocationRepository` / `CategoryRepository` 均为扩展过的接口。本页在**同一套分层与同一批仓库接口**上继续扩：**不新增表**，只加 **1 列**；新增 **1 页 + 1 路由**（9 → 10）。
+**与 P1 的关系（读前必看）**：P1 已交付位置树深化、归纳统计页、物品编辑页、分类管理、设置页，`version = 3`、5 张表、`ItemRepository` / `LocationRepository` / `CategoryRepository` 均为扩展过的接口。本页在**同一套分层与同一批仓库接口**上继续扩：**不新增表**，只加 **1 列**；新增 **1 页 + 1 路由**（**11 → 12**；原写「9 → 10」，基线已随 2026-10-09 两条 AI 页独立成页而上移，见下方订正块）。
 
 > ⚠️ **2026-10-08 订正（不升版本号）**：本页原写的迁移编号 `version 2 → 3` / `MIGRATION_2_3` **已被照片功能占用** —— `Migrations.MIGRATION_2_3` 实为 `item.photo_path`（随 `2fa3a57` 落地，**当前代码 `version = 3`**）。故本页的软删除迁移**顺延为 `version 3 → 4` / `MIGRATION_3_4`**，`app/schemas/` 新增的是 **`4.json`**。正文各处编号已按此**就地订正**（判据见 `code-map/00-索引.md` §1）。
+
+> ⚠️ **2026-10-09 订正（不升版本号）**：V2 AI 已落地，**导航基线由 10 条升到 11 条** —— 首页两个 AI 入口不再内联，各自独立成页（语音 `VoiceAiIntake`（`V2-FR-10`）/ 拍照 `PhotoAiIntake`（`V2-FR-11`））。故本页 P2 的 `RecycleBin` 由原写「10 → 11」顺延为 **「11 → 12」**（§0 决策表、§7 接缝表已同步）。另：§8.2「V2 全部」一条只表**本页（P2）范围**，V2 现状已与当时不同（AI-01～AI-03 均已实现）。
 
 > ⚠️ **范围重裁记录（2026-09-30）**：P2 原登记为「顺延 16 条」（FR-08/15/16/17/18/24/30/31/32/34/35/36/37/39/45/49）。经用户按「**更简便地使用、不为功能而功能**」原则重新裁决：**10 条删除**（FR-08 / 17 / 24 / 30 / 31 / 32 / 34 / 35 / 39 / 45）、**1 条留作下一期候选**（FR-16 拍照）、**2 条不属本池**（FR-18 由 `V2-FR-01` 承接、FR-36 已并入 FR-29），**只剩 3 条交付**。本页**取代** P1 架构页（已于 2026-10-09 移除）§8.2 的 P2 落差登记；裁决依据与逐条理由见 `PRD.md §4.12` 与 `PRD.md 附录`。
 
@@ -24,7 +26,7 @@
 | 「不在了」vs「删除」 | **两个概念、两条路径**：`status = gone` = 东西没了但记录留着（可补去向、可恢复）；`deleted_at` = 不想要这条记录了。UI 必须分层：前者是详情页 F1 大按钮，后者收在「⋯更多」+ 二次确认 |
 | 回收站页形态 | **一页两节**：上节「已不在」（`status = gone`）／下节「已删除」（`deleted_at IS NOT NULL`，显示剩余天数）；两节共用行组件与「恢复」动作；**只占 1 条路由** |
 | FR-15 落点 | **零 DB 变更**：入口 = P-ADD 已有的「已连续录入 N 件」行；批量对象 = **本会话在同一位置连续录入**的物品（ViewModel 内存列表，进程被杀即失效）；**只批量改分类**（FR-45 标签已删除，原描述里的「加标签」无对象） |
-| 导航 | **9 条 → 10 条**（+`RecycleBin`）；首页「更多」**3 项 → 4 项** |
+| 导航 | **11 条 → 12 条**（+`RecycleBin`）；首页「更多」**3 项 → 4 项** |
 | 依赖 | **零新增**（不开 WorkManager 的直接收益）；工具链基线不动 |
 | 任务 | **3 个**（P2-01 / P2-02 / P2-03） |
 
@@ -198,7 +200,7 @@ graph LR
 | `data/repository/ItemRepository.kt` / `Impl` | 加 `observeDeletedItems` / `observeGoneItems` / `moveToRecycleBin` / `restoreFromRecycleBin` / `setCategoryForItems` / `purgeDeletedBefore`；`StoredItem` 转换补 `deletedAt` |
 | `domain/model/StoredItem.kt` | 补 `deletedAt: Long?`（回收站算剩余天数） |
 | `ShounaApplication.kt` | 注入 `DeletionCleaner`，`onCreate` 起一次后台协程（§2 三条边界） |
-| `ui/navigation/ShounaRoute.kt` / `RouteHandler.kt` | +1 路由键 `RecycleBin`、+1 个 `goRecycleBin`（合计 **10 条路由 / 10 个动作**） |
+| `ui/navigation/ShounaRoute.kt` / `RouteHandler.kt` | +1 路由键 `RecycleBin`、+1 个 `goRecycleBin`（合计 **12 条路由 / 12 个动作**；**基线 = 11 条 / 11 个** —— 2026-10-09 首页「🎤 语音AI记」与「📷 拍照AI记」各自独立成页（`VoiceAiIntake` / `PhotoAiIntake`）后，本页原写「9 → 10」已随之订正） |
 | `ui/screen/home/HomeScreen.kt` | 「更多」折叠区由 3 项 → **4 项**（+ 回收站） |
 | `ui/screen/itemdetail/ItemDetailScreen.kt` / `ItemDetailViewModel.kt` | 「⋯更多」补一条「删除」+ 二次确认（守 `实现约束.md` §4-2） |
 | `ui/screen/add/QuickAddScreen.kt` | 「已连续录入 N 件」行改为可点入口（新增回调） |

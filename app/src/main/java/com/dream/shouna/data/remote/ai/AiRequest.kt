@@ -27,6 +27,10 @@ package com.dream.shouna.data.remote.ai
  *
  *   【为什么不是 `ByteArray`】值对象要能当**缓存键**的因子（见 `AiGate`），而 `ByteArray` 的
  *   `equals` 是引用比较、`hashCode` 也不看内容 —— 放进键里等于每次都不命中。字符串是值语义。
+ * 【2026-10-10 停用 · 注释保留】曾有一个 `audioBase64` 字段（**裸 base64** 的 WAV 录音内容，
+ * 供语音页「录音直送」用）—— **平台不受理音频输入**（`content` part 只认 `text` /
+ * `image_url` / `file`；`file` 槽也只吃图片），该通道已停用、字段一并注释。
+ * 原因与接回方式见 `data/local/audio/AudioRecorder.kt` 的文件头。
  */
 data class AiRequest(
     val input: String,
@@ -34,4 +38,5 @@ data class AiRequest(
     val categoryNames: List<String> = emptyList(),
     val locationPaths: List<String> = emptyList(),
     val imageBase64: String? = null,
+    // 【2026-10-10 停用 · 注释保留】录音通道的入参：`val audioBase64: String? = null,`
 )

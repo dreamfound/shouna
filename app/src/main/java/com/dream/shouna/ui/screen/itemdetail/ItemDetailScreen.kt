@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemEdit
 import com.dream.shouna.util.PhotoStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -57,6 +59,8 @@ fun ItemDetailRoute(itemId: String) {
     val locationTree by viewModel.locationTree.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val context = LocalContext.current
+    // 「移除照片」要「问计数 → 清库 → 删文件」串起来，中间隔着挂起调用，故需要一个页面作用域。
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(itemId) {
         viewModel.load(itemId)
@@ -73,9 +77,19 @@ fun ItemDetailRoute(itemId: String) {
         onMoveTo = viewModel::onMoveTo,
         // FR-16：先删文件、再清库里的名字。顺序反过来会先丢掉「旧文件名」这个唯一的线索，
         // 文件就再也找不到、删不掉了。中途失败最多留下一个孤儿文件（无害）。
+        //
+        // 【V2-FR-11（2026-10-09）：先判引用，再决定删不删文件】拍照 AI 录入产出的多件记录
+        // 共用同一个照片文件，删早了会把别人的照片弄成破图。四步顺序固定：
+        // **取定名字（局部 val）→ 问 VM 是不是最后一个引用者 → 清库 → 才删文件**。
+        // 名字必须先取成局部值：清库后 UiState 随 Flow 重发变 null，就再没有线索了。
         onRemovePhoto = {
-            PhotoStore.delete(context, uiState.photoName)
-            viewModel.onRemovePhoto()
+            val name = uiState.photoName
+            scope.launch {
+                // 计数要在清库**之前**问（此时包含自己）：>1 = 还有别的记录在用这个文件。
+                val isLastReference = viewModel.isLastPhotoReference()
+                viewModel.onRemovePhoto()
+                if (name != null && isLastReference) PhotoStore.delete(context, name)
+            }
         },
         onEditClick = { navController.goItemEdit(itemId) },
     )

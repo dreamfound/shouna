@@ -102,9 +102,28 @@ class ItemDetailViewModel @Inject constructor(
      *
      * 不写任何时间列：照片既不是「位置」也不是「状态」，按 §3.5 矩阵不改 `lastModifiedAt`，
      * 更不是一次确认 —— 因此列表排序与超期判定都不受影响。
+     *
+     * 【V2-FR-11（2026-10-09）：文件不是无条件删的】页面必须先问 [isLastPhotoReference]：
+     * 多条记录可能共用同一个照片文件，只有本条是最后一个引用者时才真删文件。
      */
     fun onRemovePhoto() {
         mutate { itemId -> itemRepository.setPhoto(itemId, null) }
+    }
+
+    /**
+     * V2-FR-11（2026-10-09）：**本条是不是这张照片的最后一个引用者** —— 决定页面要不要删文件。
+     *
+     * 【为什么不能无条件删】拍照 AI 录入一次可能识别出多件，这些记录**共用同一个照片文件**
+     * （`item.photo_path` 存文件名）。删掉 A 的照片时若直接删文件，B 的照片立刻变成破图。
+     *
+     * 【为什么必须在清库之前问】计数含自己：`<= 1` 才等于「清掉本条之后没人再用」。
+     * 调用方（`ItemDetailScreen`）的顺序固定为 **取定名字 → 问这里 → 清库 → 才删文件**。
+     *
+     * 没照片（`photoName == null`）返回 false：没有东西要删。
+     */
+    suspend fun isLastPhotoReference(): Boolean {
+        val photoName = state.value.photoName ?: return false
+        return itemRepository.countByPhotoName(photoName) <= 1
     }
 
     /** 各动作共用的执行壳：串行化（`isBusy` 挡重复点击）→ 执行 → 重取详情刷新文案。 */

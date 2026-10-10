@@ -12,11 +12,17 @@ import kotlinx.serialization.encodeToString
  * 降耦合设计：端点 / 模型来自注入的 [AiVendor]（`V2-FR-15` 的配置缝）、提示词来自 [AiPrompt]
  * 的分段组装、传输来自 [AiHttp]、解析来自 [DraftParser]。本类只做「组装请求 → 发一次 → 取出正文」。
  *
- * **支持的两个场景**（`V2-FR-11` 的照片通道已放开）：
- * - [AiScene.TEXT_INPUT]：`content` 是字符串。
+ * **支持的场景**（`V2-FR-11` 的照片通道）：
+ * - [AiScene.TEXT_INPUT] / [AiScene.VOICE_INPUT]：`content` 是**字符串**（两路只在 system prompt
+ *   的功能段分岔，报文形态完全同形）。
  * - [AiScene.PHOTO_INPUT]：`content` 是 `[text, image_url]` 数组，图片以 **data URL** 送出。
  * - [AiScene.QUERY] 连功能段文案都还没有（`V2-AI-PRD` §7），在入口处直接返回 null —— 宁可回落
  *   人工录入，也不发出语义残缺的请求（`V2-FR-07`：失败不阻塞主流程）。
+ *
+ * 【2026-10-10 停用 · 注释保留】曾有一支 [AiScene.VOICE_AUDIO]（`content` 装成
+ * `[text, input_audio]` 数组、音频走**裸 base64**）—— **平台不受理音频输入**：`content` part
+ * 只认 `text` / `image_url` / `file`（`input_audio` 被 422 枚举拒收），`file` 槽也只吃图片。
+ * 该分支随整条录音链路一并注释、未删。
  *
  * 失败口径：**非 2xx 一律返 null**，不区分异常类型、不重试（`docs/code-map/02-数据与领域.md`-12）。
  */
@@ -26,7 +32,11 @@ class DeepSeekAiClient @Inject constructor(
     private val vendor: AiVendor,
 ) : AiClient {
 
-    override suspend fun parse(request: AiRequest, apiKey: String): List<AiDraft>? {
+    override suspend fun parse(
+        request: AiRequest,
+        apiKey: String,
+        onUsage: (Int) -> Unit,
+    ): List<AiDraft>? {
         if (apiKey.isBlank()) return null
         if (request.scene == AiScene.QUERY) return null
 
@@ -55,27 +65,52 @@ class DeepSeekAiClient @Inject constructor(
         if (!response.isSuccess) return null
 
         val payload = response.body ?: return null
-        val content = runCatching {
-            AiJson.decodeFromString<ChatResponse>(payload).contentOrNull()
-        }.getOrNull()
-        return DraftParser.parse(content, request.categoryNames)
+        // 一次解码，正文与用量各取所需。解不开则两者都拿不到 —— 与改前「content = null」等价。
+        val chat = runCatching { AiJson.decodeFromString<ChatResponse>(payload) }.getOrNull()
+        // 用量**顺带回报**（设置页的消耗显示）：供应商没回 `usage` 就不调 —— 宁可少一个数，
+        // 也不报一个假的 0。调用方自己决定「成不成功才计」。
+        chat?.usage?.totalTokens?.let(onUsage)
+        return DraftParser.parse(chat?.contentOrNull(), request.categoryNames)
     }
 
-    /** 按场景造 user 消息；返回 null = 本场景的必需内容缺失，不该发这次请求。 */
+    /**
+     * 按场景造 user 消息；返回 null = 本场景的必需内容缺失，不该发这次请求。
+     *
+     * 各场景各走各的构造（图文 / 纯文本），互不借用：图片要 data URL，**这条写反了不会报错、
+     * 只会让模型收不到内容**（表现为「识别不出任何物品」），故有一个带名字的常量与专门的单测。
+     */
     private fun buildUserMessage(request: AiRequest): ChatMessage? {
         val text = request.input.trim()
-        return if (request.scene == AiScene.PHOTO_INPUT) {
-            val image = request.imageBase64?.trim().orEmpty()
-            if (image.isEmpty()) return null
-            // 用户没额外说话时给一句默认指令 —— 空 content 部分会被供应商拒（400）。
-            ChatMessage.textAndImage(
-                role = ChatMessage.ROLE_USER,
-                text = text.ifEmpty { PHOTO_INSTRUCTION },
-                imageDataUrl = IMAGE_DATA_URL_PREFIX + image,
-            )
-        } else {
-            if (text.isEmpty()) return null
-            ChatMessage.text(ChatMessage.ROLE_USER, text)
+        return when (request.scene) {
+            AiScene.PHOTO_INPUT -> {
+                val image = request.imageBase64?.trim().orEmpty()
+                if (image.isEmpty()) return null
+                // 用户没额外说话时给一句默认指令 —— 空 content 部分会被供应商拒（400）。
+                ChatMessage.textAndImage(
+                    role = ChatMessage.ROLE_USER,
+                    text = text.ifEmpty { PHOTO_INSTRUCTION },
+                    imageDataUrl = IMAGE_DATA_URL_PREFIX + image,
+                )
+            }
+
+            // 【2026-10-10 停用 · 注释保留】录音场景的报文构造（平台不受理音频输入，见类注释）：
+            //     AiScene.VOICE_AUDIO -> {
+            //         val audio = request.audioBase64?.trim().orEmpty()
+            //         if (audio.isEmpty()) return null
+            //         // 同一条理由：text 槽不能空着，故补一句默认指令（容器由 `format` 声明）。
+            //         ChatMessage.textAndAudio(
+            //             role = ChatMessage.ROLE_USER,
+            //             text = text.ifEmpty { AUDIO_INSTRUCTION },
+            //             audioBase64 = audio,
+            //         )
+            //     }
+
+            // 文字与语音句两路：`content` 就是那句话本身（两路只在 system prompt 的功能段分岔）。
+            // `QUERY` 到不了这里（[parse] 入口已返 null），列出来只为让这个 `when` 穷尽。
+            AiScene.TEXT_INPUT, AiScene.VOICE_INPUT, AiScene.QUERY -> {
+                if (text.isEmpty()) return null
+                ChatMessage.text(ChatMessage.ROLE_USER, text)
+            }
         }
     }
 
@@ -92,5 +127,8 @@ class DeepSeekAiClient @Inject constructor(
 
         /** 照片通道下用户没额外交代时的默认指令（配在 [AiPrompt.SCENE_PHOTO_INPUT] 的功能段之外）。 */
         const val PHOTO_INSTRUCTION = "请识别这张照片里的物品。"
+
+        // 【2026-10-10 停用 · 注释保留】录音通道的默认指令（`text` 槽不能空着，得补一句）。
+        // 原文：const val AUDIO_INSTRUCTION = "请把这段录音里提到的物品逐条登记出来。"
     }
 }

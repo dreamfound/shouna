@@ -270,6 +270,8 @@ class ItemRepositoryImpl @Inject constructor(
         return itemDao.findById(itemId)?.toDomain()
     }
 
+    override suspend fun countByPhotoName(photoName: String): Int = itemDao.countByPhotoPath(photoName)
+
     override fun observeActiveItemCount(): Flow<Int> = itemDao.observeActiveCount()
 
     override fun observeOverdueItems(thresholdMonths: Int): Flow<List<StoredItem>> {

@@ -23,9 +23,11 @@ import com.dream.shouna.ui.screen.home.HomeRoute
 import com.dream.shouna.ui.screen.itemdetail.ItemDetailRoute
 import com.dream.shouna.ui.screen.itemedit.ItemEditRoute
 import com.dream.shouna.ui.screen.location.LocationBrowseRoute
+import com.dream.shouna.ui.screen.photoai.PhotoAiIntakeRoute
 import com.dream.shouna.ui.screen.search.SearchRoute
 import com.dream.shouna.ui.screen.settings.SettingsRoute
 import com.dream.shouna.ui.screen.stats.StatsRoute
+import com.dream.shouna.ui.screen.voiceai.VoiceAiIntakeRoute
 
 /**
  * 全局唯一 NavController 出口：仅 [com.dream.shouna.MainActivity] 提供，Route 层消费。
@@ -49,7 +51,7 @@ val LocalNavController = staticCompositionLocalOf<NavHostController> {
 private const val NAV_TRANSITION_MILLIS = 400
 
 /**
- * 唯一 NavHost：9 条 [ShounaRoute] 与 9 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
+ * 唯一 NavHost：11 条 [ShounaRoute] 与 11 个页面一一注册。仅做路由，不写业务逻辑、不取 ViewModel。
  *
  * 系统栏避让是**唯一容器级**职责（docs/实现约束.md）：窗口是边到边的（`MainActivity`
  * 调 `enableEdgeToEdge()`，且 API 35+ 本就强制），故在此对唯一 NavHost 施加
@@ -62,9 +64,10 @@ private const val NAV_TRANSITION_MILLIS = 400
  * 的可见区）：键盘是窗口级状态，与避让同源，页面不各自处理。子控件吃掉点击后事件不冒泡，
  * 故只有真正无人接管的空白区会落到它（详见该函数注释）。
  *
- * P1 新增的 4 条（[Stats] / [ItemEdit] / [Settings] / [CategoryManage]）在**同一张 NavHost** 上注册，
- * 不引入嵌套图：它们的返回行为与既有 5 页一致（普通 `popBackStack`），统计的卡片/明细两态
- * 在 `StatsScreen` 内部消化，不占路由（P1 §8.1-16）。
+ * P1 新增的 4 条（[Stats] / [ItemEdit] / [Settings] / [CategoryManage]）与 **V2 新增的 2 条**
+ * （[VoiceAiIntake] / [PhotoAiIntake]）在**同一张 NavHost** 上注册，不引入嵌套图：它们的返回行为
+ * 与既有 5 页一致（普通 `popBackStack`），统计的卡片 / 明细两态在 `StatsScreen` 内部消化，不占路由
+ * （P1 §8.1-16）。
  */
 @Composable
 fun RouteHandler(modifier: Modifier = Modifier) {
@@ -104,6 +107,12 @@ fun RouteHandler(modifier: Modifier = Modifier) {
         }
         composable<CategoryManage> {
             CategoryManageRoute()
+        }
+        composable<VoiceAiIntake> {
+            VoiceAiIntakeRoute()
+        }
+        composable<PhotoAiIntake> {
+            PhotoAiIntakeRoute()
         }
     }
 }
@@ -165,6 +174,26 @@ fun NavHostController.goSettings() {
 /** P1 新增：进入分类管理页（FR-44）。被设置页的「分类管理」入口触发。 */
 fun NavHostController.goCategoryManage() {
     navigate(CategoryManage)
+}
+
+/**
+ * **V2 新增**：进入语音 AI 录入页（`V2-FR-10`）。被首页「🎤 语音AI记」触发。
+ *
+ * 无参数 —— 位置由**那句话**决定（模型返回路径、本地匹配、命中的最深层就是落点；
+ * 解析不出的层降级到最近的已存在祖先），不存在「先定位置」这样一个页面级输入。
+ */
+fun NavHostController.goVoiceAiIntake() {
+    navigate(VoiceAiIntake)
+}
+
+/**
+ * **V2 新增**：进入拍照 AI 录入页（`V2-FR-11`）。被首页「📷 拍照AI记」触发。
+ *
+ * 无参数 —— 落点位置在**那一页里**先定（`V2-FR-13`「位置先定后用」，进页预选最近使用），
+ * 不从路由传入。
+ */
+fun NavHostController.goPhotoAiIntake() {
+    navigate(PhotoAiIntake)
 }
 
 fun NavHostController.popBack() {

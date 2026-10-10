@@ -51,6 +51,10 @@ class SettingsViewModel @Inject constructor(
     val aiUsageCount: StateFlow<Int> = aiSettings.observeUsageCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MILLIS), 0)
 
+    /** 本周期累计消耗的 token **合计**；供应商没回报的那些次不计，失败不计（`V2-COST-04`）。 */
+    val aiUsageTokens: StateFlow<Int> = aiSettings.observeUsageTokens()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MILLIS), 0)
+
     /** 读当前阈值填入 UiState；载入完成前 `thresholdMonths` 保持 null（页面不预选任何一档）。 */
     fun load() {
         viewModelScope.launch {

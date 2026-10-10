@@ -21,6 +21,11 @@ local.properties
 # Local credential material (key/dafeiyu.txt etc). Never commit, never upload.
 /key/
 
+# 内置离线语音识别模型（Vosk 中文小模型，约 42 MB）：随 APK 发布、但**不入仓库**
+# （2026-10-10 用户裁定；42 MB 二进制一旦进 git 不可逆）。换机器后需重新放回
+# `app/src/main/assets/vosk-model-small-cn-0.22/` 才能构建出带语音的包。
+app/src/main/assets/vosk-model-small-cn-0.22/
+
 # Native / NDK
 obj/
 libs/

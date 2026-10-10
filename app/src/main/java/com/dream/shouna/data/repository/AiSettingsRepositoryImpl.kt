@@ -65,11 +65,35 @@ class AiSettingsRepositoryImpl @Inject constructor(
     override fun observeUsageCount(): Flow<Int> =
         configDao.observe(AiSettingsRepository.KEY_USAGE_COUNT).map { it?.toIntOrNull() ?: 0 }
 
-    override suspend fun countUsage() = usageMutex.withLock {
-        val next = (configDao.get(AiSettingsRepository.KEY_USAGE_COUNT)?.toIntOrNull() ?: 0) + 1
+    override fun observeUsageTokens(): Flow<Int> =
+        configDao.observe(AiSettingsRepository.KEY_USAGE_TOKENS).map { it?.toIntOrNull() ?: 0 }
+
+    /**
+     * 次数与 token **在同一把锁内一并写**：两个 KV 是同一份用量的两个面，分开写会出现
+     * 「次数已 +1、token 还是上一轮」的中间态（页面读到自相矛盾的两行）。
+     *
+     * 调用点两处、口径相同（见接口）：真调用成功、以及**命中进程内缓存**（命中也要计，2026-10-09 用户定）
+     * ⇒ 两数都是「AI 产出量」，高于供应商账单。
+     */
+    override suspend fun countUsage(tokens: Int?) = usageMutex.withLock {
+        val nextCount = (configDao.get(AiSettingsRepository.KEY_USAGE_COUNT)?.toIntOrNull() ?: 0) + 1
         configDao.put(
-            AppConfigEntity(key = AiSettingsRepository.KEY_USAGE_COUNT, value = next.toString()),
+            AppConfigEntity(
+                key = AiSettingsRepository.KEY_USAGE_COUNT,
+                value = nextCount.toString(),
+            ),
         )
+        // 供应商没回报（tokens == null）⇒ 不动 token KV：只计次数这一件事本身是完整信息。
+        if (tokens != null) {
+            val nextTokens =
+                (configDao.get(AiSettingsRepository.KEY_USAGE_TOKENS)?.toIntOrNull() ?: 0) + tokens
+            configDao.put(
+                AppConfigEntity(
+                    key = AiSettingsRepository.KEY_USAGE_TOKENS,
+                    value = nextTokens.toString(),
+                ),
+            )
+        }
     }
 
     private fun String?.toFlag(): Boolean = this == FLAG_ON

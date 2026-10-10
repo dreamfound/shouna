@@ -21,10 +21,25 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Android 11+ 包可见性：要让 `ACTION_IMAGE_CAPTURE` 能被解析到系统相机。 -->
+    <!--
+      Android 11+ 包可见性（targetSdk ≥ 30 起生效，本工程 targetSdk = 36）：
+      - `ACTION_IMAGE_CAPTURE`：让系统相机能被解析到（Android 11+ 起需要）；
+      - `android.speech.RecognitionService`：**SpeechRecognizer 的硬前提**。
+        `SpeechRecognizer.isRecognitionAvailable()` 的内部实现就是
+        `queryIntentServices(new Intent(RecognitionService.SERVICE_INTERFACE))`，
+        而该查询受包可见性过滤：**未声明则恒返回 false** ⇒ `VoiceCapturePad` 判定为
+        `UNAVAILABLE`、话筒永不绘制（2026-10-10 实测根因；AOSP
+        `frameworks/base/core/java/android/speech/SpeechRecognizer.java` 的 Javadoc 亦明文要求）。
+
+      注意：本次新增的是**包可见性声明，不是权限** —— 不新增任何 `uses-permission`，
+      也不改变「本地优先、不出机」的口径（`EXTRA_PREFER_OFFLINE` 与 `V2-AI-PRD` §2 均未动）。
+    -->
     <queries>
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 

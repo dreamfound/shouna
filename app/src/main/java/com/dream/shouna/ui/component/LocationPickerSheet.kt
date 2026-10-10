@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
@@ -38,7 +37,10 @@ import com.dream.shouna.domain.model.LocationTreeRow
  * 树可能很深，弹层高度按 80% 屏高固定。
  *
  * 「必须手动选择位置」在录入场景由此兑现：用户要么在树里点一个，要么用「＋ 新建位置」**输入**一个。
- * 默认全展开（用 `collapsedIds` 记录折叠项，空集 = 全展开），避免用户为了找一个深层位置反复点击。
+ *
+ * 【树的渲染已下移】那一段（含折叠态）抽到了 [LocationTreeList]，因为逐条确认弹窗里的
+ * 「位置选择态」要用**同一棵**（`AiItemDialog`，语音通道专用）。本弹层现在只管
+ * 「最近 chips + 新建位置入口 + 选中回调」这三件事。
  *
  * P1 起 [allowCreate] 可关：「归位到…」「移动到…」「迁移到…」这类**在既有位置里挑一个**的场景
  * 不需要新建入口 —— 与其摆一个点了没反应的按钮，不如整块不出现（守 `实现约束.md` §3-4：
@@ -58,13 +60,10 @@ fun LocationPickerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // 记「折叠了什么」而不是「展开了什么」：新增位置默认就是展开的，不必同步两套状态。
-    var collapsedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var creating by remember { mutableStateOf(false) }
     var newLocationName by remember { mutableStateOf("") }
 
     val rowById = rows.associateBy { it.location.id }
-    val visibleRows = rows.filter { row -> isVisible(row, rowById, collapsedIds) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.fillMaxHeight(SHEET_HEIGHT_FRACTION)) {
@@ -143,48 +142,19 @@ fun LocationPickerSheet(
 
             HorizontalDivider()
 
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(items = visibleRows, key = { it.location.id }) { row ->
-                    LocationTreeItem(
-                        row = row,
-                        expanded = row.location.id !in collapsedIds,
-                        selected = row.location.id == selectedLocationId,
-                        onToggleExpand = {
-                            collapsedIds = if (row.location.id in collapsedIds) {
-                                collapsedIds - row.location.id
-                            } else {
-                                collapsedIds + row.location.id
-                            }
-                        },
-                        onClick = { onSelect(row.location.id) },
-                    )
-                }
-            }
+            // 折叠态由 [LocationTreeList] 自己持有（纯呈现状态）；本弹层只管「选中了哪个」
+            // 与它上面那两块（最近 chips / 新建位置入口）。
+            LocationTreeList(
+                rows = rows,
+                selectedLocationId = selectedLocationId,
+                onSelect = onSelect,
+            )
         }
     }
 }
 
-/** 行的祖先链上是否有被折叠者（被折叠即整枝不可见）。 */
-private fun isVisible(
-    row: LocationTreeRow,
-    rowById: Map<String, LocationTreeRow>,
-    collapsedIds: Set<String>,
-): Boolean {
-    var parentId = row.location.parentId
-    var guard = 0
-    while (parentId != null && guard < MAX_DEPTH_GUARD) {
-        if (parentId in collapsedIds) return false
-        parentId = rowById[parentId]?.location?.parentId
-        guard += 1
-    }
-    return true
-}
-
 /** 弹层高度占屏比。 */
 private const val SHEET_HEIGHT_FRACTION = 0.8f
-
-/** 防脏数据成环导致死循环。 */
-private const val MAX_DEPTH_GUARD = 64
 
 /** 「最近」chips 的 key 前缀，避免与树行的 key（位置 id）冲突。 */
 private const val RECENT_CHIP_PREFIX = "recent-"

@@ -9,7 +9,7 @@ import com.dream.shouna.domain.ai.AiFailReason
 /**
  * AI 失败原因 → 一行文案。
  *
- * 【为什么单拆一个文件】`AiFailReason` 由两个页面（录入页、首页）共用，文案必须一致 ——
+ * 【为什么单拆一个文件】`AiFailReason` 由三个页面（录入页、语音 AI 录入页、拍照 AI 录入页）共用，文案必须一致 ——
  * 映射留在任一页里，另一页要么反向依赖那一页，要么抄一份（抄的那份迟早会与原版不一致）。
  *
  * 【为什么是 `@Composable`】取值要走 `stringResource`（持资源的是界面层）。VM / 用例层只给
