@@ -72,7 +72,7 @@ private fun systemRecognizerIntent(): Intent =
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        // 有本地语音包就走本地，没有才回落系统服务（`prd/14` §14.4 的「本地优先」）。
+        // 有本地语音包就走本地，没有才回落系统服务（`PRD.md` §14.4 的「本地优先」）。
         putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
     }
 

@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
  *
  * P1 的两条边界（P1 §8.1-16 / §8.1-15）：
  * - **统计下钻不新增路由** —— 卡片态 / 明细态是同一个 `Stats` 目的地的页内两态；
- * - 分类管理**有独立页**（`prd/07` §6.1 未给），由 P-SETTINGS 内的入口进入。
+ * - 分类管理**有独立页**（`PRD.md` §6.1 未给），由 P-SETTINGS 内的入口进入。
  */
 
 @Serializable
@@ -20,7 +20,7 @@ data object Home
  *
  * `locationId` 非 null = **从 P-BROWSE 的「＋ 往这里记一件」进来**，录入页位置条预选该位置；
  * null = 首页「＋ 记一件」进来，位置条走「最近使用」预选（F1 既有行为）。
- * —— 这条参数即 `prd/07` §6.2 跳转图里 `BROWSE --> ADD` 那条边的落地。
+ * —— 这条参数即 `PRD.md` §6.2 跳转图里 `BROWSE --> ADD` 那条边的落地。
  */
 @Serializable
 data class QuickAdd(val locationId: String? = null)
@@ -68,7 +68,7 @@ data object CategoryManage
  * 本页目前只有首页「🎤 语音AI记」一个入口。
  *
  * 与 [PhotoAiIntake] 是**同一套结果段的两个输入段**：两页共用 `ui/ai/AiItemQueue` 与
- * `ui/component/AiItemDialog`。
+ * `ui/component/ai/AiItemDialog`。
  */
 @Serializable
 data object VoiceAiIntake

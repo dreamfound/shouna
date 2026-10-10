@@ -3,7 +3,7 @@ package com.dream.shouna.data.remote.ai
 import com.dream.shouna.domain.ai.AiDraft
 
 /**
- * 「一句话 / 一张照片 → 结构化草稿」的**唯一能力接口**（`prd/14` `V2-SEAM-02`）。
+ * 「一句话 / 一张照片 → 结构化草稿」的**唯一能力接口**（`PRD.md` §14.5 `V2-SEAM-02`）。
  *
  * 入参是 [AiRequest] 值对象：功能场景（[AiScene]）、分类名单、位置清单、照片内容都在其中 ——
  * **新增上下文项不再改签名**（此前 `apiKey` 的追加就已迫使全部替身与测试跟着改一遍）。

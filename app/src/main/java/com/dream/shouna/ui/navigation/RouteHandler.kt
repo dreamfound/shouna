@@ -16,12 +16,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import com.dream.shouna.ui.component.clearFocusOnTap
+import com.dream.shouna.ui.component.common.clearFocusOnTap
 import com.dream.shouna.ui.screen.add.QuickAddRoute
 import com.dream.shouna.ui.screen.category.CategoryManageRoute
 import com.dream.shouna.ui.screen.home.HomeRoute
-import com.dream.shouna.ui.screen.itemdetail.ItemDetailRoute
-import com.dream.shouna.ui.screen.itemedit.ItemEditRoute
+import com.dream.shouna.ui.screen.item.ItemDetailRoute
+import com.dream.shouna.ui.screen.item.ItemEditRoute
 import com.dream.shouna.ui.screen.location.LocationBrowseRoute
 import com.dream.shouna.ui.screen.photoai.PhotoAiIntakeRoute
 import com.dream.shouna.ui.screen.search.SearchRoute

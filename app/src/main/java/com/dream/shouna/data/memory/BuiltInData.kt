@@ -39,7 +39,7 @@ object BuiltInData {
      * 取值口径（常量兜底，docs/code-map/02-数据与领域.md 未钉死具体名单）：名称取自 PRD `FR-12` 的举例
      * 「电器/衣物/工具/文具/药品/其他…」并补足到 8 条；`sortOrder` 即 chips 排列顺序。
      *
-     * P1-05（FR-44）：`isBuiltIn = true` 的这 8 条**可改名、不可删**（`prd/08` §7.4）。
+     * P1-05（FR-44）：`isBuiltIn = true` 的这 8 条**可改名、不可删**（`PRD.md` §7.4）。
      */
     val BUILT_IN_CATEGORIES: List<Category> = listOf(
         Category(id = "builtin-category-appliance", name = "电器", isBuiltIn = true, sortOrder = 1),

@@ -30,11 +30,11 @@ import com.dream.shouna.R
 import com.dream.shouna.domain.ai.AiState
 import com.dream.shouna.domain.model.Category
 import com.dream.shouna.domain.model.LocationTreeRow
-import com.dream.shouna.ui.ai.AiQueueState
-import com.dream.shouna.ui.component.AiItemDialog
+import com.dream.shouna.ui.component.ai.AiQueueState
+import com.dream.shouna.ui.component.ai.AiItemDialog
 // 【2026-10-10 停用 · 注释保留】原 `import com.dream.shouna.ui.component.AudioCapturePad`
-import com.dream.shouna.ui.component.VoiceCapturePad
-import com.dream.shouna.ui.component.text
+import com.dream.shouna.ui.component.ai.VoiceCapturePad
+import com.dream.shouna.ui.component.ai.text
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.popBack
 

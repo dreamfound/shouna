@@ -21,8 +21,10 @@ import java.util.UUID
  * 【文件名只存名字、不存绝对路径】`filesDir` 的绝对路径在换机、换安装位置（内部 ↔ adoptable
  * storage）后会变，文件名不会；路径一律由 [fileOf] 现算。
  *
- * 被调用方：`ui/screen/add/QuickAddViewModel.kt`（录入时拍照 / 选图）、
- * `ui/screen/itemdetail/ItemDetailViewModel.kt`（移除照片）。
+ * 被调用方**一律在 UI 层**（ViewModel 不碰文件，见 `docs/code-map/05-改动须知.md` §1-31 第 ① 条）：
+ * `ui/component/PhotoInputRow.kt`（建 / 删 / 缩略图）、`ui/screen/item/ItemDetailScreen.kt`（预览解码 + 条件删除）、
+ * `ui/screen/item/ItemEditScreen.kt`（删废弃图）、`ui/screen/photoai/PhotoAiIntakeScreen.kt`（离开本页删未落库的临时图）、
+ * `util/AiImageEncoder.kt`（编码前解码）。
  */
 object PhotoStore {
 

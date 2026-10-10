@@ -46,7 +46,7 @@ class CategoryRepositoryImpl @Inject constructor(
     override suspend fun rename(id: String, name: String): Boolean {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return false
-        // 内置分类也允许改名（`prd/08` §7.4）；改名不动物品记录（物品只存 category_id）。
+        // 内置分类也允许改名（`PRD.md` §7.4）；改名不动物品记录（物品只存 category_id）。
         return categoryDao.rename(id, trimmed) > 0
     }
 

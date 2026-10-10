@@ -34,13 +34,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dream.shouna.data.repository.LocationDeleteMode
 import com.dream.shouna.domain.model.LocationTreeRow
-import com.dream.shouna.ui.component.EmptyState
-import com.dream.shouna.ui.component.ItemRow
-import com.dream.shouna.ui.component.LocationBreadcrumb
-import com.dream.shouna.ui.component.LocationMoveSheet
-import com.dream.shouna.ui.component.LocationPickerSheet
-import com.dream.shouna.ui.component.LocationTreeItem
-import com.dream.shouna.ui.component.TemporaryMark
+import com.dream.shouna.ui.component.common.EmptyState
+import com.dream.shouna.ui.component.item.ItemRow
+import com.dream.shouna.ui.component.location.LocationBreadcrumb
+import com.dream.shouna.ui.component.location.LocationMoveSheet
+import com.dream.shouna.ui.component.location.LocationPickerSheet
+import com.dream.shouna.ui.component.location.LocationTreeItem
+import com.dream.shouna.ui.component.item.TemporaryMark
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
 import com.dream.shouna.ui.navigation.goLocationBrowse
@@ -72,7 +72,7 @@ fun LocationBrowseRoute(locationId: String?) {
         onMergeCurrent = viewModel::onMergeCurrent,
         onToggleTemporary = viewModel::onToggleTemporaryCurrent,
         onConfirmAllInCurrent = viewModel::onConfirmAllInCurrent,
-        // P1 补齐（`prd/07` §6.2 的 `BROWSE --> ADD`）：带着**当前这一层**进录入页。
+        // P1 补齐（`PRD.md` §6.2 的 `BROWSE --> ADD`）：带着**当前这一层**进录入页。
         // 根级时 `locationId` 为 null ⇒ 按钮本就不显示（见 Screen 内注释），这里的 `?.let` 是二道保险。
         onQuickAddHere = { uiState.locationId?.let { navController.goQuickAdd(it) } },
     )
@@ -84,7 +84,7 @@ fun LocationBrowseRoute(locationId: String?) {
  * 一页只表达一层 —— 面包屑显示「我在哪」，列表显示「这一层有什么」，底部提供增删改与
  * P1-02 新增的**移动 / 合并 / 标记临时 / 含子层一键确认**，以及**「＋ 往这里记一件」**。
  *
- * 【新增入口的定位】`prd/07` §6.1 给 P-BROWSE 的职责里本就写着「批量录入入口」、§6.2 的跳转图
+ * 【新增入口的定位】`PRD.md` §6.1 给 P-BROWSE 的职责里本就写着「批量录入入口」、§6.2 的跳转图
  * 亦有一条 `BROWSE --> ADD`；入口长期缺失（功能未实现，非入口被藏）。本次补齐：点它进 P-ADD，
  * **位置条预选当前这一层** —— 这正是「打开一个箱子，往里连续记东西」的主路径。
  * 只给非根级：根级不是一个位置，位置条无处可预填（位置必填口径见 docs/PRD.md）。
@@ -200,7 +200,7 @@ fun LocationBrowseScreen(
             )
         }
 
-        // PRD `prd/07` §6.1 给 P-BROWSE 的「批量录入入口」（§6.2 跳转图的 `BROWSE --> ADD`）。
+        // `PRD.md` §6.1 给 P-BROWSE 的「批量录入入口」（§6.2 跳转图的 `BROWSE --> ADD`）。
         // 单起一行且用主色 `Button`：这是本页最高频的去向（开箱 → 往里记），不该混进下面那两排
         // 次级动作里；也避免把 Row 压到 5 个按钮而溢出（两排现有 3 + 4 个）。
         // 文案与首页主按钮「＋ 记一件」成对：这里多出的「往这里」明确了落点 = **当前这一层**。

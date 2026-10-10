@@ -13,8 +13,8 @@ import com.dream.shouna.domain.ai.AiState
 import com.dream.shouna.domain.model.Category
 import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
-import com.dream.shouna.ui.ai.AiItemQueue
-import com.dream.shouna.ui.ai.AiQueueState
+import com.dream.shouna.ui.component.ai.AiItemQueue
+import com.dream.shouna.ui.component.ai.AiQueueState
 import com.dream.shouna.util.LocationPath
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject

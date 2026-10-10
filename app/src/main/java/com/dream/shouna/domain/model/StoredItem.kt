@@ -28,7 +28,7 @@ data class StoredItem(
     val categoryId: String? = null,
     /** 兜底：F1 恒 = `ItemStatus.IN_STORAGE`。 */
     val status: ItemStatus = ItemStatus.IN_STORAGE,
-    /** 整数、≥ 1、默认 1、无单位；P0 恒 1，P1-04 起可改（`prd/11` Q3）。 */
+    /** 整数、≥ 1、默认 1、无单位；P0 恒 1，P1-04 起可改（`PRD.md` §10 Q3）。 */
     val quantity: Int = 1,
     /** F1 唯一可选字段（折叠）。 */
     val note: String? = null,

@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * AI 调用的**唯一闸门**（`prd/14` `V2-SEAM-06` / `V2-COST-03②`；`实现约束.md` §7-5）。
+ * AI 调用的**唯一闸门**（`PRD.md` §14.5 `V2-SEAM-06` / §14.6 `V2-COST-03②`；`实现约束.md` §7-5）。
  *
  * 任何 AI 调用都必须经过这里 —— 触发点集中在一处，不散落在各页面。放行顺序（任一不通过即返 null，
  * 调用方走人工回退，**不弹窗、不阻塞**）：

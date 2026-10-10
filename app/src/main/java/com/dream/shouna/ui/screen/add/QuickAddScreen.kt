@@ -43,13 +43,12 @@ import com.dream.shouna.domain.ai.AiState
 import com.dream.shouna.domain.model.Category
 import com.dream.shouna.domain.model.Location
 import com.dream.shouna.domain.model.LocationTreeRow
-import com.dream.shouna.ui.component.AiStatusSection
-import com.dream.shouna.ui.component.CategoryChips
-import com.dream.shouna.ui.component.LocationPickerSheet
-import com.dream.shouna.ui.component.PhotoInputRow
-import com.dream.shouna.ui.component.VoiceInputButton
-import com.dream.shouna.ui.component.VoiceInputDialog
-import com.dream.shouna.ui.component.text
+import com.dream.shouna.ui.component.ai.AiStatusSection
+import com.dream.shouna.ui.component.search.CategoryChips
+import com.dream.shouna.ui.component.location.LocationPickerSheet
+import com.dream.shouna.ui.component.item.PhotoInputRow
+import com.dream.shouna.ui.component.ai.VoiceInputButton
+import com.dream.shouna.ui.component.ai.VoiceInputDialog
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
 import com.dream.shouna.util.AiImageEncoder
@@ -431,7 +430,7 @@ private fun AiParseButton(
     }
 }
 
-// AI 状态区（进度 / 失败 / 确认卡）已移到 `ui/component/AiStatusSection.kt` —— 录入页是当前唯一宿主
+// AI 状态区（进度 / 失败 / 确认卡）已移到 `ui/component/ai/AiStatusSection.kt` —— 录入页是当前唯一宿主
 // （首页与两条 AI 页自 2026-10-09 起都不再走确认卡）。
 
 

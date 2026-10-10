@@ -12,7 +12,7 @@ package com.dream.shouna.domain.ai
  * 入口的进度态也就没有落脚点。
  *
  * 【谁还用到 [Draft]】只有录入页（P-ADD）的确认卡 —— 语音与拍照两条通道的结果形态都是
- * **逐条确认弹窗**（`ui/ai/AiItemQueue` + `ui/component/AiItemDialog`），不再产生 `Draft`。
+ * **逐条确认弹窗**（`ui/ai/AiItemQueue` + `ui/component/ai/AiItemDialog`），不再产生 `Draft`。
  */
 sealed interface AiState {
     /** 总开关未开：无入口、无请求、无卡片。 */

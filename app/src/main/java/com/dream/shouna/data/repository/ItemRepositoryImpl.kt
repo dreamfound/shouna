@@ -177,7 +177,7 @@ class ItemRepositoryImpl @Inject constructor(
             return itemDao.findById(itemId)?.toDomain()
         }
 
-        // 数量口径（`prd/11` Q3）：整数 ≥ 1；非法值不落库（调用方已在 UI 拦，这里兜第二道）。
+        // 数量口径（`PRD.md` §10 Q3）：整数 ≥ 1；非法值不落库（调用方已在 UI 拦，这里兜第二道）。
         val quantity = patch.quantity
         if (quantity != null && quantity < 1) return null
 

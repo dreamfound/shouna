@@ -339,7 +339,7 @@ class QuickAddViewModel @Inject constructor(
     /**
      * FR-14：「查看已有」——跳到查重命中的那条记录（导航由 Route 层下发）。
      *
-     * 之所以是「跳转」而不是「阻止保存」：FR-14 在 `prd/05` 标 F2，触发点却在 F1 的 P-ADD，
+     * 之所以是「跳转」而不是「阻止保存」：FR-14 在 `PRD.md` §4 标 F2，触发点却在 F1 的 P-ADD，
      * 本页按「**提示轻量、不引入新名词、无门控**」处置（P1 §8.1-12）——保存永远可继续。
      */
     fun onViewSimilar() {

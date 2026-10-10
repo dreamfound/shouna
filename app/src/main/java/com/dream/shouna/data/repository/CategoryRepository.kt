@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
  * **P1-05 由只读扩为可写**（FR-44 分类管理）。
  *
  * 内置 / 自定义的判据是 [Category.isBuiltIn]（读 `category.is_built_in`），
- * **内置分类可改名不可删**（`prd/08` §7.4）。
+ * **内置分类可改名不可删**（`PRD.md` §7.4）。
  */
 interface CategoryRepository {
 

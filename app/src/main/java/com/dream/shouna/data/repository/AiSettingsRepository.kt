@@ -3,7 +3,7 @@ package com.dream.shouna.data.repository
 import kotlinx.coroutines.flow.Flow
 
 /**
- * AI 配置读写（`prd/14` `V2-SEAM-05`、`V2-FR-06` / `V2-FR-08`）：总开关、密钥、本周期用量。
+ * AI 配置读写（`PRD.md` §14.5 `V2-SEAM-05`、`V2-FR-06` / `V2-FR-08`）：总开关、密钥、本周期用量。
  *
  * **出厂默认关**；关闭开关**不删密钥**（免得每次开启都要重填 —— 守「不增加使用成本」）。
  *

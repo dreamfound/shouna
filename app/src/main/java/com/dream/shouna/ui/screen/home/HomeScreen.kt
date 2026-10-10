@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dream.shouna.R
-import com.dream.shouna.ui.component.EmptyState
-import com.dream.shouna.ui.component.ShounaSearchBar
+import com.dream.shouna.ui.component.common.EmptyState
+import com.dream.shouna.ui.component.search.ShounaSearchBar
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goLocationBrowse
 import com.dream.shouna.ui.navigation.goPhotoAiIntake

@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
  * `category` 表读写（docs/code-map/02-数据与领域.md）：8 条内置由种子写入；
  * **P1-05（FR-44）由只读扩为可写** —— 增删改三个写路径。
  *
- * 内置（`is_built_in = 1`）**可改名、不可删**（`prd/08` §7.4）：
+ * 内置（`is_built_in = 1`）**可改名、不可删**（`PRD.md` §7.4）：
  * 改名语句不设 `is_built_in` 条件（内置也能改），删除语句**在 SQL 层就带 `is_built_in = 0`**
  * —— 让「内置不可删」由数据库而不是调用方的记性保证。
  */
@@ -37,7 +37,7 @@ interface CategoryDao {
     @Query("SELECT COALESCE(MAX(sort_order), 0) FROM category")
     suspend fun maxSortOrder(): Int
 
-    /** 改名。**不设内置条件** —— 内置分类也允许改名（`prd/08` §7.4）。 */
+    /** 改名。**不设内置条件** —— 内置分类也允许改名（`PRD.md` §7.4）。 */
     @Query("UPDATE category SET name = :name WHERE id = :id")
     suspend fun rename(id: String, name: String): Int
 
