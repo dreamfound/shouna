@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -28,13 +29,20 @@ import kotlinx.coroutines.launch
  * P-BROWSE（FR-01 / 02 / 03 / 05）的状态机。
  *
  * 层级遍历用**下钻**而非树形展开：`currentId` 决定当前层，页面只渲染「该层的子位置」+
- * 「该位置的直属物品」。理由：下钻天然带面包屑、不需要维护展开集，而且深树时不会一次渲染上百行。
+ * 「该位置的直属物品」。理由：下钻不需要维护展开集，深树时也不会一次渲染上百行。
+ *
+ * **2026-10-13：下钻不换页**。切层 = [load] 改 `currentId`，**不再 `navigate` 到新路由** ——
+ * 原先每进一层压一条返回栈条目，返回键要按 N 次才出得去（用户裁定「进入新页面体验太差」）。
+ * 返回键语义因此下沉到页内：非根级时先 [goUp] 退一层，到根级才交还返回栈
+ * （`BackHandler` 挂在 `LocationBrowseScreen`，与 `StatsScreen` 的明细态同一手法）。
+ * 连带：删除 / 合并成功后停在**父级**而不是根级 —— 被操作的那层不存在了，但用户是在它父级
+ * 下面找东西，跳回根级等于要他重新点一遍。
  *
  * 位置选择弹层（`LocationPickerSheet`）走的是另一条路径 —— 它需要一次看见整棵树，故用展平列表。
  *
  * 物品行的「最后确认 + ⚠」在本层组装（P0-03 ③；Screen 不持有 `TimeUtil` / `ConfigRepository`）。
  *
- * 被调用方：`LocationBrowseRoute`（hiltViewModel + load / create / rename / delete）
+ * 被调用方：`LocationBrowseRoute`（hiltViewModel + load / goUp / create / rename / delete）
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -76,6 +84,8 @@ class LocationBrowseViewModel @Inject constructor(
         val now = timeUtil.nowMillis()
         LocationBrowseUiState(
             locationId = id,
+            // 顶部标题 / 四个弹层标题共用的「当前层名」。页内切层后不能再由页面从路径文本上截末段。
+            currentName = currentRow?.location?.name ?: ROOT_PATH_TEXT,
             pathText = currentRow?.pathText ?: ROOT_PATH_TEXT,
             // 只渲染**当前层的直属**子位置（下钻语义）；整棵树另由 allRows 提供给删除对话框的迁移目标选择。
             children = tree.filter { it.location.parentId == id },
@@ -96,10 +106,29 @@ class LocationBrowseViewModel @Inject constructor(
         initialValue = LocationBrowseUiState(),
     )
 
-    /** 进入某一层；null = 根级。 */
+    /** 进入某一层；null = 根级。**页内切层也走它**（点位置行 → 这里改 `currentId`，不换页）。 */
     fun load(locationId: String?) {
         currentId.value = locationId
     }
+
+    /**
+     * 页内下钻：退回上一层（根级无事发生）。
+     *
+     * 走一次 `observeTree().first()` 取父链，而不是让 UI 层从 `uiState.allRows` 回查 ——
+     * 层级是数据事实，页面只表达「我要去哪一层」。
+     */
+    fun goUp() {
+        val id = currentId.value ?: return
+        viewModelScope.launch {
+            currentId.value = parentIdOf(id)
+        }
+    }
+
+    /** 取 [id] 的父级（null = 根级）。查不到（该层已被别处删掉）也按根级处理。 */
+    private suspend fun parentIdOf(id: String): String? = locationRepository.observeTree().first()
+        .firstOrNull { it.location.id == id }
+        ?.location
+        ?.parentId
 
     /** FR-01：在当前层下新建子位置。 */
     fun onCreateChild(name: String) {
@@ -128,26 +157,30 @@ class LocationBrowseViewModel @Inject constructor(
 
     /**
      * FR-05：删除当前层（以子树为单位）。
-     * 成功后回到根级 —— 当前层已不存在，留在原地会显示一个不存在的路径。
+     * 成功后回到它的**父级**（2026-10-13 起；当前层已不存在，跳回根级等于让用户重新点回来）。
      * 失败（迁移目标非法等）时不改层级，由 UI 侧的选择约束避免（对话框只提供合法目标）。
      */
     fun onDeleteCurrent(mode: LocationDeleteMode, migrateTargetId: String? = null) {
         val id = currentId.value ?: return
         viewModelScope.launch {
+            // 父级必须在删除**之前**取 —— 删完这一行就查不到了。
+            val parentId = parentIdOf(id)
             val deleted = locationRepository.delete(id = id, mode = mode, migrateTargetId = migrateTargetId)
             if (deleted) {
-                currentId.value = null
+                currentId.value = parentId
             }
         }
     }
 
     /**
-     * 物品行（P0-03 ③）：这里**不带路径** —— 页面顶部的面包屑已经说明「我在哪一层」，
+     * 物品行（P0-03 ③）：这里**不带路径** —— 页面顶部的路径行已经说明「我在哪一层」，
      * 行内再重复一遍是噪音。只补「最后确认」与 FR-27 的超期标记（列表行同样只放一个时间）。
      */
     private fun StoredItem.toItemUi(thresholdMonths: Int, now: Long): LocationItemUi = LocationItemUi(
         id = id,
         name = name,
+        // FR-16：列表缩略图（只传文件名；没拍照 = null ⇒ 行首不留占位）。
+        photoName = photoPath,
         subtitle = if (lastConfirmedAt == null) {
             TimeUtil.NEVER_CONFIRMED
         } else {
@@ -171,13 +204,15 @@ class LocationBrowseViewModel @Inject constructor(
         }
     }
 
-    /** FR-04：把当前层合并进 [targetId]（当前层的子位置与物品改挂目标，随后当前层消失 → 回根级）。 */
+    /** FR-04：把当前层合并进 [targetId]（当前层的子位置与物品改挂目标，随后当前层消失 → 回**父级**）。 */
     fun onMergeCurrent(targetId: String) {
         val id = currentId.value ?: return
         viewModelScope.launch {
+            // 与删除同处理：父级要在合并之前取，且成功后退到它而不是根级。
+            val parentId = parentIdOf(id)
             if (locationRepository.merge(sourceId = id, targetId = targetId)) {
-                // 当前层已不存在，留在原地会显示一个不存在的路径（与删除同处理）。
-                currentId.value = null
+                // 当前层已不存在，留在原地会显示一个不存在的路径。
+                currentId.value = parentId
             }
         }
     }
@@ -231,7 +266,14 @@ private fun LocationTreeRow.isSelfOrDescendantOf(
 data class LocationBrowseUiState(
     /** 当前层；null = 根级。 */
     val locationId: String? = null,
-    /** 面包屑文本；根级显示 [ROOT_PATH_TEXT]。 */
+    /**
+     * **当前层名**（根级 = [ROOT_PATH_TEXT]）：顶部标题与四个弹层标题共用。
+     *
+     * 2026-10-13 起由 VM 直接给 —— 页内切层后，页面没法再从路径文本上截末段得到它
+     * （原先那句还硬编码了 `LocationPath.SEPARATOR` 的字面量）。
+     */
+    val currentName: String = ROOT_PATH_TEXT,
+    /** 只读路径行文本；根级显示 [ROOT_PATH_TEXT]。 */
     val pathText: String = ROOT_PATH_TEXT,
     /** P1-02（FR-06）：当前层是否被标记为**临时位置**。 */
     val isTemporary: Boolean = false,
@@ -253,14 +295,16 @@ data class LocationBrowseUiState(
 
 /**
  * 位置浏览的物品行（P0-03 ③）：名称 + 「最后确认 …」+ FR-27 超期标记。
- * 与 `SearchResultUi` 的差别：这里不含路径（本页有面包屑）。
+ * 与 `SearchResultUi` 的差别：这里不含路径（本页有顶部路径行）。
  */
 data class LocationItemUi(
     val id: String,
     val name: String,
+    /** FR-16：列表缩略图用的照片文件名；null = 没拍照（行首不留占位）。 */
+    val photoName: String? = null,
     val subtitle: String,
     val isOverdue: Boolean,
 )
 
-/** 根级的面包屑文案（根级不是一个真实位置，没有父链可拼）。 */
+/** 根级标题与路径行的文案（根级不是一个真实位置，没有父链可拼）。 */
 const val ROOT_PATH_TEXT: String = "全部位置"

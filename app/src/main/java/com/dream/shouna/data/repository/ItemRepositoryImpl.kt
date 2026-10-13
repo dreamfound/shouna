@@ -397,6 +397,8 @@ internal fun ItemEntity.toSearchDoc(
         normalizedLocationPath = TextNormalizer.normalize(locationPath),
         pinyinLocationPath = pinyinLocationPath,
         status = status,
+        // 列表缩略图（FR-16）：同一条 `item` 行带出文件名，解码在 UI 层（`PhotoThumbnail`）。
+        photoPath = photoPath,
         lastModifiedAt = lastModifiedAt,
         lastConfirmedAt = lastConfirmedAt,
     )

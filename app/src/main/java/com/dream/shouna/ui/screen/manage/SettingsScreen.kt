@@ -1,5 +1,6 @@
 package com.dream.shouna.ui.screen.manage
 
+import com.dream.shouna.ui.vm.SettingsUiState
 import com.dream.shouna.ui.vm.SettingsViewModel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

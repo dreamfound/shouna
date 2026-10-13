@@ -1,5 +1,8 @@
 package com.dream.shouna.ui.screen.manage
 
+import com.dream.shouna.ui.vm.StatsDetailKind
+import com.dream.shouna.ui.vm.StatsDetailRowUi
+import com.dream.shouna.ui.vm.StatsUiState
 import com.dream.shouna.ui.vm.StatsViewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background

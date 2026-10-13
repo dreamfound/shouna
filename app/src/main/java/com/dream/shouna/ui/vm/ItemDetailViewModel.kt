@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -32,6 +35,10 @@ import kotlinx.coroutines.launch
  *
  * 文案组装全部在本层完成（Screen 不持有 TimeUtil / ConfigRepository，docs/实现约束.md）；
  * 「⋯更多」折叠区要用位置树来做「移动到…」，树由本层提供，弹层的开合由页面持有。
+ *
+ * FR-02（2026-10-13）：位置面包屑由 `combine(位置树, 本条 locationId)` **实时派生**（见 `init`）——
+ * 位置被**移动 / 改名 / 合并**（都发生在位置浏览页，本条物品一个字节都没变）后路径当场跟随，
+ * 不必重进页面。与 `ItemEditViewModel` 同一手法，两页口径一致。
  *
  * 被调用方：ItemDetailRoute（hiltViewModel + load / 各动作）
  */
@@ -53,6 +60,33 @@ class ItemDetailViewModel @Inject constructor(
 
     /** 当前展示的物品 id，由 [load] 记录，供各动作复用。 */
     private var loadedItemId: String? = null
+
+    init {
+        // FR-02：面包屑文本 = **本条物品的位置 id** × **位置树** 两因派生，两个因**都**进 combine
+        // （`docs/实现约束.md` §3-2：展示文本的因子中不落库的项必须显式进 combine）。
+        //
+        // 【为什么不能只靠 [refresh]】`refresh` 是一次性读：只在 `load()` 与各动作之后跑。
+        // 位置被移动 / 改名 / 合并时**本条物品没有任何一列发生变化**，`refresh` 不会被触发，
+        // 面包屑就会停在旧路径上（详情页与编辑页的观感不一致）。改成订阅后，位置一变文本即跟随。
+        //
+        // 回写仍只认「当前展示的那条」：combine 的一次发射可能晚于 `load()` / 动作后的
+        // `state.update`，别用旧位置的文本盖掉新的。
+        viewModelScope.launch {
+            combine(
+                locationRepository.observeTree(),
+                state.map { it.item?.locationId.orEmpty() }.distinctUntilChanged(),
+            ) { tree, locationId -> locationId to pathOf(tree, locationId) }
+                .collect { (locationId, pathText) ->
+                    state.update { current ->
+                        if (current.item?.locationId.orEmpty() == locationId) {
+                            current.copy(locationPath = pathText)
+                        } else {
+                            current
+                        }
+                    }
+                }
+        }
+    }
 
     fun load(itemId: String) {
         loadedItemId = itemId
@@ -142,7 +176,13 @@ class ItemDetailViewModel @Inject constructor(
         }
     }
 
-    /** 取详情并把两行时间文案、位置路径、折叠区字段与超期判定组装进 UiState。 */
+    /**
+     * 取详情并把两行时间文案、位置路径、折叠区字段与超期判定组装进 UiState。
+     *
+     * 【位置路径为什么这里也写一次】它在这里给的是**首帧值**（与详情同一次读出，页面不会先闪
+     * 一个空面包屑）；此后由 `init` 里那条 `combine(位置树, locationId)` 保持最新 ——
+     * 位置被移动 / 改名后本条物品无列变化、本函数不会被触发，靠的就是那条订阅。
+     */
     private suspend fun refresh(itemId: String) {
         val detail: ItemDetail? = itemRepository.getItemDetail(itemId)
         val item: StoredItem? = detail?.item
@@ -171,6 +211,10 @@ class ItemDetailViewModel @Inject constructor(
         } else {
             "最后确认：${timeUtil.relativeConfirmText(lastConfirmedAt)}"
         }
+
+    /** 在展平树里取某位置的完整路径文本；树里找不到（如物品还未载入）= 空串。 */
+    private fun pathOf(tree: List<LocationTreeRow>, locationId: String): String =
+        tree.firstOrNull { it.location.id == locationId }?.pathText.orEmpty()
 
     private companion object {
         const val SUBSCRIBE_TIMEOUT_MILLIS = 5_000L
@@ -206,4 +250,7 @@ data class ItemDetailUiState(
 
     /** FR-16：本条记录的照片文件名；null = 没拍照。 */
     val photoName: String? get() = item?.photoPath
+
+    /** 物品信息区展示的备注（2026-10-13 起上移到常显区）；空 / null = 该行整块不渲染。 */
+    val note: String? get() = item?.note
 }

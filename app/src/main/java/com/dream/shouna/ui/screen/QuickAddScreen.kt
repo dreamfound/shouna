@@ -1,6 +1,8 @@
 package com.dream.shouna.ui.screen
 
+import com.dream.shouna.ui.vm.QuickAddUiState
 import com.dream.shouna.ui.vm.QuickAddViewModel
+import com.dream.shouna.ui.vm.VoiceField
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,6 +54,7 @@ import com.dream.shouna.ui.component.ai.VoiceInputButton
 import com.dream.shouna.ui.component.ai.VoiceInputDialog
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
+import com.dream.shouna.ui.navigation.popBack
 import com.dream.shouna.util.AiImageEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -105,6 +108,7 @@ fun QuickAddRoute(initialLocationId: String?) {
         onAiToggle = viewModel::onAiToggle,
         onAiApply = viewModel::onAiApply,
         onAiDismiss = viewModel::onAiDismiss,
+        onBack = { navController.popBack() },
     )
 
     QuickAddLocationPicker(
@@ -125,7 +129,7 @@ fun QuickAddRoute(initialLocationId: String?) {
 }
 
 /**
- * 无状态页：**位置条（必填）** + 名称（自动聚焦）+ 分类 chips + 折叠备注 + 保存并继续 + 计数器。
+ * 无状态页：**顶部返回** + **位置条（必填）** + 名称（自动聚焦）+ 分类 chips + 折叠备注 + 保存并继续 + 计数器。
  *
  * 与 F1 的唯一界面差别 = 位置条。位置未选时保存按钮禁用并给出原因文案
  * —— 这是「所有物品必须有位置」在 UI 上的唯一表达（docs/PRD.md）。
@@ -155,6 +159,7 @@ fun QuickAddScreen(
     onAiToggle: (Int) -> Unit,
     onAiApply: () -> Unit,
     onAiDismiss: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -175,6 +180,12 @@ fun QuickAddScreen(
             .fillMaxSize()
             .padding(16.dp),
     ) {
+        // 「返回」：回上一页。与系统返回键同义（未保存的输入直接丢弃，本页不做拦截确认）。
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onBack) { Text(text = "返回") }
+            Text(text = "记一件", style = MaterialTheme.typography.titleMedium)
+        }
+
         // 位置条：必填项。未选时用错误色提示，点击打开树选择弹层（弹层内可「＋ 新建位置」）。
         OutlinedButton(
             onClick = onOpenLocationPicker,

@@ -1,6 +1,8 @@
 package com.dream.shouna.ui.screen
 
+import com.dream.shouna.ui.vm.LocationBrowseUiState
 import com.dream.shouna.ui.vm.LocationBrowseViewModel
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,12 +47,14 @@ import com.dream.shouna.ui.component.location.LocationTreeItem
 import com.dream.shouna.ui.component.item.TemporaryMark
 import com.dream.shouna.ui.navigation.LocalNavController
 import com.dream.shouna.ui.navigation.goItemDetail
-import com.dream.shouna.ui.navigation.goLocationBrowse
 import com.dream.shouna.ui.navigation.goQuickAdd
 import com.dream.shouna.ui.navigation.popBack
 
 /**
  * 有状态包装层（docs/实现约束.md）：取 ViewModel、把 UiState 下传；导航动作在此组装。
+ *
+ * **2026-10-13**：点子位置不再 `navigate`（原先是 `goLocationBrowse(childId)`，每进一层压一条返回栈
+ * 条目），改成只改 ViewModel 的当前层 —— 切层在本页内完成，全页只剩首页那一次导航。
  */
 @Composable
 fun LocationBrowseRoute(locationId: String?) {
@@ -63,7 +68,9 @@ fun LocationBrowseRoute(locationId: String?) {
 
     LocationBrowseScreen(
         uiState = uiState,
-        onChildClick = { childId -> navController.goLocationBrowse(childId) },
+        // 页内切层：点位置行 = 把「当前层」换成它，不换页。
+        onChildClick = viewModel::load,
+        onGoUp = viewModel::goUp,
         onItemClick = { itemId -> navController.goItemDetail(itemId) },
         onBack = { navController.popBack() },
         onCreateChild = viewModel::onCreateChild,
@@ -82,8 +89,14 @@ fun LocationBrowseRoute(locationId: String?) {
 /**
  * P-BROWSE（FR-01 / 02 / 03 / 05 + P1-02 的 04 / 06 / 21 / 28）：当前层的位置浏览。
  *
- * 一页只表达一层 —— 面包屑显示「我在哪」，列表显示「这一层有什么」，底部提供增删改与
+ * 一页只表达一层 —— 路径行显示「我在哪」，列表显示「这一层有什么」，底部提供增删改与
  * P1-02 新增的**移动 / 合并 / 标记临时 / 含子层一键确认**，以及**「＋ 往这里记一件」**。
+ *
+ * 【切层不换页（2026-10-13）】点子位置行 = 页内改「当前层」，**不再进新页面**。原先每层压一条
+ * 返回栈，返回键要按 N 次才出得去（用户裁定「进入新页面体验太差」）。返回键语义因此下沉到本页：
+ * 非根级时先退一层（[BackHandler]，与 `StatsScreen` 的明细态同一手法），到根级才交还系统 ——
+ * 左上角那颗按钮同此语义，避免两套返回手势并存。
+ * 顶部路径行**不可点**：回退只有「← 上一层」一条路（它只负责说明「我在哪条链上」，长按可复制）。
  *
  * 【新增入口的定位】`PRD.md` §6.1 给 P-BROWSE 的职责里本就写着「批量录入入口」、§6.2 的跳转图
  * 亦有一条 `BROWSE --> ADD`；入口长期缺失（功能未实现，非入口被藏）。本次补齐：点它进 P-ADD，
@@ -103,6 +116,7 @@ fun LocationBrowseRoute(locationId: String?) {
 fun LocationBrowseScreen(
     uiState: LocationBrowseUiState,
     onChildClick: (String) -> Unit,
+    onGoUp: () -> Unit,
     onItemClick: (String) -> Unit,
     onBack: () -> Unit,
     onCreateChild: (String) -> Unit,
@@ -115,6 +129,11 @@ fun LocationBrowseScreen(
     onQuickAddHere: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 页内切层后的返回键：非根级先退一层，根级不拦截 ⇒ 交还系统退出本页。
+    // 挂在 **Screen**（而不是 Route）：与 `StatsScreen` / 两个 AI 页同一落点，且本页的行为与
+    // 左上角那颗按钮必须一字不差，写在同一个作用域里才不会一处改一处漏。
+    BackHandler(enabled = !uiState.isRoot) { onGoUp() }
+
     // 7 个弹层开关在本页**只写不读**（`flag.value = true` 不建立订阅），
     // `if (flag.value)` 的读取全部下沉到下方 4 个私有宿主 —— 读在哪，失效就只到哪。
     // 若在此读取，开任何一个弹层都会重跑整页，含 `LazyColumn` 里已可见的每一行。
@@ -127,8 +146,8 @@ fun LocationBrowseScreen(
     val confirmingAll = remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
 
-    // 弹层标题 / 初值用的「当前层名」：面包屑取末段，四处弹层共用（原先各算一遍）。
-    val currentName = uiState.pathText.substringAfterLast(" › ")
+    // 弹层标题 / 初值用的「当前层名」：由 VM 给（页内切层后不能再从路径文本上截末段）。
+    val currentName = uiState.currentName
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -137,9 +156,12 @@ fun LocationBrowseScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            TextButton(onClick = onBack) { Text(text = "返回") }
+            // 非根级 = 退一层（与系统返回键同一行为）；根级 = 退出本页。
+            TextButton(onClick = if (uiState.isRoot) onBack else onGoUp) {
+                Text(text = if (uiState.isRoot) "返回" else "← 上一层")
+            }
             Text(
-                text = if (uiState.isRoot) "位置" else "位置详情",
+                text = uiState.currentName,
                 style = MaterialTheme.typography.titleMedium,
             )
         }
@@ -150,6 +172,7 @@ fun LocationBrowseScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
         ) {
+            // 只读：说明「我在哪条链上」（长按复制路径），不承担回退 —— 回退只有上面那颗按钮。
             LocationBreadcrumb(
                 pathText = uiState.pathText,
                 modifier = Modifier.weight(1f),
@@ -171,10 +194,15 @@ fun LocationBrowseScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        // 页内切层 ⇒ 这是**同一份** `LazyColumn` 换数据：不重置就会带着上一层的滚动偏移
+        // （从第 3 层退回第 2 层时停在半空中）。层一变即回顶部（2026-10-13）。
+        val listState = rememberLazyListState()
+        LaunchedEffect(uiState.locationId) { listState.scrollToItem(0) }
+
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
             items(items = uiState.children, key = { it.location.id }) { child ->
                 LocationTreeItem(
-                    // 当前层只显示一层 → 缩进归零，层级由面包屑表达。
+                    // 当前层只显示一层 → 缩进归零，层级由顶部路径行与标题表达。
                     row = child.copy(depth = 0),
                     expanded = true,
                     selected = false,
@@ -187,9 +215,11 @@ fun LocationBrowseScreen(
                     name = item.name,
                     // 位置浏览不是检索场景，无关键词可高亮。
                     highlightRange = null,
-                    // P0-03 ③：列表行同样补「最后确认」与 FR-27 的 ⚠（路径由上方面包屑表达）。
+                    // P0-03 ③：列表行同样补「最后确认」与 FR-27 的 ⚠（路径由上方路径行表达）。
                     subtitle = item.subtitle,
                     showOverdue = item.isOverdue,
+                    // FR-16：有照片的行首带一张缩略图。
+                    photoName = item.photoName,
                     onClick = { onItemClick(item.id) },
                 )
             }
@@ -296,6 +326,10 @@ fun LocationBrowseScreen(
 //
 // 挂载位置不影响观感：两个 `AlertDialog` 与两个 `ModalBottomSheet` 都渲染为**独立窗口**，
 // 在组合树里的位置不决定层级。
+//
+// 【页内切层不需要额外关弹层】切层只有两条触发路径：点位置行（弹层是模态的，点不到行）与
+// 「← 上一层」/返回键（对话窗口自己先吃掉返回键并 dismiss）。按钮触发的动作则一律在回调里
+// 顺手把开关置回 false。故不留「切层时统一关闭」这种兜底代码。
 
 /** 新建子位置 / 重命名：两个单行输入对话框。 */
 @Composable

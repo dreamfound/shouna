@@ -48,4 +48,11 @@ data class SearchDoc(
     val lastModifiedAt: Long,
     /** FR-27：结果行的「最后确认」与超期判定输入。 */
     val lastConfirmedAt: Long? = null,
+    /**
+     * FR-16 的**列表缩略图**：照片文件名（与 `StoredItem.photoPath` 同口径）；null = 没拍照。
+     *
+     * 只带**文件名**不带路径，也不带解码结果 —— 解码在 UI 层（`ui/component/item/PhotoThumbnail`
+     * 经 `util/PhotoStore`），本类保持「不依赖 Android 框架」（同 `StoredItem`）。
+     */
+    val photoPath: String? = null,
 )

@@ -1,5 +1,6 @@
 package com.dream.shouna.ui.screen
 
+import com.dream.shouna.ui.vm.SearchUiState
 import com.dream.shouna.ui.vm.SearchViewModel
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -133,6 +134,8 @@ fun SearchScreen(
                                 showOverdue = row.isOverdue,
                                 // FR-02 / US-04：长按结果行副标题可复制该物品的位置路径。
                                 copyablePath = row.locationPath,
+                                // FR-16：有照片的行首带一张缩略图。
+                                photoName = row.photoName,
                                 onClick = { onResultClick(row.itemId) },
                             )
                         }

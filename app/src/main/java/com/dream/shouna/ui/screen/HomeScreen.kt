@@ -32,6 +32,7 @@ import com.dream.shouna.ui.navigation.goSearch
 import com.dream.shouna.ui.navigation.goSettings
 import com.dream.shouna.ui.navigation.goStats
 import com.dream.shouna.ui.navigation.goVoiceAiIntake
+import com.dream.shouna.ui.vm.HomeUiState
 
 /**
  * 有状态包装层（docs/实现约束.md）。

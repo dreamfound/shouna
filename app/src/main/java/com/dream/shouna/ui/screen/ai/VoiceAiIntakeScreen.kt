@@ -1,5 +1,6 @@
 package com.dream.shouna.ui.screen.ai
 
+import com.dream.shouna.ui.vm.VoiceAiIntakeUiState
 import com.dream.shouna.ui.vm.VoiceAiIntakeViewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column

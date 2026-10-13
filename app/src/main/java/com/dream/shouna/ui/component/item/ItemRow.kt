@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
  * - P0-03 起补 `subtitle`（路径 + 时间，由 VM 拼好后下传）与 `showOverdue`（FR-27 的 ⚠）。
  *   两者都是可选参数 → 既有调用点无需改动。
  * - P0-04 起补 `copyablePath`（FR-02 / US-04：结果行的路径长按复制）。
+ * - 2026-10-13 起补 `photoName`（FR-16 的列表缩略图）：有照片时行首多一张 48dp 方图，
+ *   没照片（null）时行与从前**一模一样** —— 行高、缩进、点击区都不变，既有调用点零感知。
  *
  * 无状态：高亮区间由 `SearchScorer.highlightRange` 在 VM 侧算好；为 null 即纯文本行。
  * 剪贴板是**平台 UI 能力**（非业务工具），与 `LocationBreadcrumb` 一样留在组件层。
@@ -47,6 +49,11 @@ fun ItemRow(
      * （只复制路径，不含「· 最后确认 …」—— 与详情页面包屑的复制口径一致）。
      */
     copyablePath: String? = null,
+    /**
+     * FR-16：这件物品的照片**文件名**（`StoredItem.photoPath` / `SearchDoc.photoPath`）；
+     * null = 没拍照，行首不留占位。解码与缓存交给 [PhotoThumbnail]。
+     */
+    photoName: String? = null,
 ) {
     val highlightColor = MaterialTheme.colorScheme.primaryContainer
     // 区间越界一律裁剪到 [0, name.length]，不抛异常。
@@ -72,47 +79,62 @@ fun ItemRow(
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-        )
+        // 缩略图只在有照片时出现：没照片的行保持 P1 的两行文字排布，不留空占位。
+        if (photoName != null) {
+            PhotoThumbnail(
+                photoName = photoName,
+                modifier = Modifier.padding(end = THUMBNAIL_GAP),
+            )
+        }
 
-        if (subtitle != null) {
-            val copyable = copyablePath?.takeIf { it.isNotBlank() }
-            val copyModifier = if (copyable == null) {
-                Modifier
-            } else {
-                Modifier.combinedClickable(
-                    onClick = {},
-                    onLongClick = {
-                        clipboard.setText(AnnotatedString(copyable))
-                        Toast.makeText(context, "已复制位置路径", Toast.LENGTH_SHORT).show()
-                    },
-                )
-            }
+        // 点击区在整行（Row）上，文字列只负责排版宽度。
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+            )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .then(copyModifier),
-            ) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OverdueMark(
-                    visible = showOverdue,
-                    modifier = Modifier.padding(start = 6.dp),
-                )
+            if (subtitle != null) {
+                val copyable = copyablePath?.takeIf { it.isNotBlank() }
+                val copyModifier = if (copyable == null) {
+                    Modifier
+                } else {
+                    Modifier.combinedClickable(
+                        onClick = {},
+                        onLongClick = {
+                            clipboard.setText(AnnotatedString(copyable))
+                            Toast.makeText(context, "已复制位置路径", Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .then(copyModifier),
+                ) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OverdueMark(
+                        visible = showOverdue,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
             }
         }
     }
 }
+
+/** 缩略图与文字列之间的间距。 */
+private val THUMBNAIL_GAP = 12.dp

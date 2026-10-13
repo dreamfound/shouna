@@ -225,6 +225,8 @@ class SearchViewModel @Inject constructor(
             )
         }.joinToString(SUBTITLE_SEPARATOR),
         isOverdue = timeUtil.isOverdue(doc.lastConfirmedAt, thresholdMonths, now),
+        // FR-16：列表缩略图（只传文件名；没拍照 = null ⇒ 行首不留占位）。
+        photoName = doc.photoPath,
     )
 
     /** 检索流的多元输入（`combine` 的类型载体）。 */
@@ -275,4 +277,6 @@ data class SearchResultUi(
     val subtitle: String,
     /** FR-27：超过阈值未确认（含「从未确认」）→ 行尾显示 ⚠。 */
     val isOverdue: Boolean,
+    /** FR-16：列表缩略图用的照片文件名；null = 没拍照（行首不留占位）。 */
+    val photoName: String? = null,
 )
