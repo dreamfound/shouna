@@ -17,17 +17,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.dream.shouna.ui.component.common.clearFocusOnTap
-import com.dream.shouna.ui.screen.add.QuickAddRoute
-import com.dream.shouna.ui.screen.category.CategoryManageRoute
-import com.dream.shouna.ui.screen.home.HomeRoute
-import com.dream.shouna.ui.screen.item.ItemDetailRoute
-import com.dream.shouna.ui.screen.item.ItemEditRoute
-import com.dream.shouna.ui.screen.location.LocationBrowseRoute
-import com.dream.shouna.ui.screen.photoai.PhotoAiIntakeRoute
-import com.dream.shouna.ui.screen.search.SearchRoute
-import com.dream.shouna.ui.screen.settings.SettingsRoute
-import com.dream.shouna.ui.screen.stats.StatsRoute
-import com.dream.shouna.ui.screen.voiceai.VoiceAiIntakeRoute
+import com.dream.shouna.ui.screen.QuickAddRoute
+import com.dream.shouna.ui.screen.manage.CategoryManageRoute
+import com.dream.shouna.ui.screen.HomeRoute
+import com.dream.shouna.ui.screen.ItemDetailRoute
+import com.dream.shouna.ui.screen.ItemEditRoute
+import com.dream.shouna.ui.screen.LocationBrowseRoute
+import com.dream.shouna.ui.screen.ai.PhotoAiIntakeRoute
+import com.dream.shouna.ui.screen.SearchRoute
+import com.dream.shouna.ui.screen.manage.SettingsRoute
+import com.dream.shouna.ui.screen.manage.StatsRoute
+import com.dream.shouna.ui.screen.ai.VoiceAiIntakeRoute
 
 /**
  * 全局唯一 NavController 出口：仅 [com.dream.shouna.MainActivity] 提供，Route 层消费。

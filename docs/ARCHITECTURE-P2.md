@@ -144,7 +144,7 @@ ALTER TABLE item ADD COLUMN deleted_at INTEGER
 ### P2-02 回收站页（依赖 P2-01）
 
 - **新建 2**：`ui/screen/recycle/RecycleBinScreen.kt` + `RecycleBinViewModel.kt`
-- **触及 5 个既有文件**：`ui/navigation/ShounaRoute.kt`（+`RecycleBin`）、`ui/navigation/RouteHandler.kt`（+1 目的地、+1 个 `goRecycleBin`）、`ui/screen/home/HomeScreen.kt`（「更多」3 项 → 4 项）、`ui/screen/itemdetail/ItemDetailScreen.kt` + `ItemDetailViewModel.kt`（「⋯更多」补一条「删除」，二次确认后软删除并退出页面）
+- **触及 5 个既有文件**：`ui/navigation/ShounaRoute.kt`（+`RecycleBin`）、`ui/navigation/RouteHandler.kt`（+1 目的地、+1 个 `goRecycleBin`）、`ui/screen/HomeScreen.kt`（「更多」3 项 → 4 项）、`ui/screen/ItemDetailScreen.kt` + `ui/vm/ItemDetailViewModel.kt`（「⋯更多」补一条「删除」，二次确认后软删除并退出页面）
 - **子步骤** ① 上节「已不在」：`observeGoneItems()` 清单 + 条数徽标 + 逐条「恢复」（调既有 `ItemRepository.restore`）；② 下节「已删除」：`observeDeletedItems()` 清单 + **剩余天数**（`(deleted_at + 90 天) - now`，向上取整，最小显示 1 天）+ 逐条「恢复」（`restoreFromRecycleBin`）；③ 两节共用既有行组件；节标题与说明文案见 §8.1-6；④ 详情页「⋯更多」的「删除」走**二次确认**（守 `实现约束.md` §4-2），确认文案须说明「可在回收站保留 90 天」；⑤ 空态：两节各自为空时不显示该节，两节全空显示一页空态
 - **验收** 软删除后物品出现在「已删除」节且剩余天数正确（刚删除显示 90 天）；「不在了」的物品出现在「已不在」节；两节的「恢复」分别把物品还原为「未删除」与「`in_storage`」；恢复后回到搜索与位置浏览；删除位置时其下回收站物品跟随迁移、不产生孤儿；首页「更多」第 4 项可达
 - **PRD 承接** FR-49 / FR-37、`PRD.md §8.2.2` 的 **C-6**（原「已失效物品」卡片改由本节承接）
@@ -152,7 +152,7 @@ ALTER TABLE item ADD COLUMN deleted_at INTEGER
 ### P2-03 连续录入的批量改分类（无依赖）
 
 - **新建 1**：`ui/component/BatchEditSheet.kt`（多选清单 + 分类 chips，复用 `CategoryChips`）
-- **触及 4 个既有文件**：`ui/screen/add/QuickAddScreen.kt`（「已连续录入 N 件」行变可点入口）、`QuickAddViewModel.kt`（会话批次列表 + 批量写入 + 页内两态开关）、`QuickAddRoute`（下发新回调）、`data/repository` 侧复用 P2-01 已加的 `setCategoryForItems`
+- **触及 4 个既有文件**：`ui/screen/QuickAddScreen.kt`（「已连续录入 N 件」行变可点入口）、`ui/vm/QuickAddViewModel.kt`（会话批次列表 + 批量写入 + 页内两态开关）、`QuickAddRoute`（下发新回调）、`data/repository` 侧复用 P2-01 已加的 `setCategoryForItems`
 - **子步骤** ① `QuickAddViewModel` 维护 `sessionItems: List<SessionItem(itemId, locationId)>`（**内存**，进程被杀即失效——连续录入本就是一次坐下来录一批，不为它建表）；② 入口条件：**本会话在「当前所选位置」录入的条目数 ≥ 2**（「批量」要有对象；切位置后入口按新位置重算）；③ `BatchEditSheet` 列出该批次的名称与当前位置，多选 → 点分类 chip → 调 `setCategoryForItems(ids, categoryId)`；④ 写后不刷 `last_modified_at`（§3.5）；⑤ 关闭弹层后清空选择、**不清空批次**（用户可能想改两次）
 - **验收** 连续录入 3 件后，入口出现且点开恰好列出这 3 件；切到另一位置录入 2 件，入口只列后 2 件；批量改分类后到搜索页能按新分类筛出这些物品；`last_modified_at` 不变；**连续录入 5 件 ≤ 40 秒不受影响**（入口只是一行文字变可点，不加步骤）
 - **PRD 承接** FR-15、`PRD.md §5.1` 的 M7（连续录入期间**不弹**位置 / 分类对话框——本入口是**保存之后**的页内两态，不在连续录入过程中打断）
@@ -201,14 +201,14 @@ graph LR
 | `domain/model/StoredItem.kt` | 补 `deletedAt: Long?`（回收站算剩余天数） |
 | `ShounaApplication.kt` | 注入 `DeletionCleaner`，`onCreate` 起一次后台协程（§2 三条边界） |
 | `ui/navigation/ShounaRoute.kt` / `RouteHandler.kt` | +1 路由键 `RecycleBin`、+1 个 `goRecycleBin`（合计 **12 条路由 / 12 个动作**；**基线 = 11 条 / 11 个** —— 2026-10-09 首页「🎤 语音AI记」与「📷 拍照AI记」各自独立成页（`VoiceAiIntake` / `PhotoAiIntake`）后，本页原写「9 → 10」已随之订正） |
-| `ui/screen/home/HomeScreen.kt` | 「更多」折叠区由 3 项 → **4 项**（+ 回收站） |
-| `ui/screen/itemdetail/ItemDetailScreen.kt` / `ItemDetailViewModel.kt` | 「⋯更多」补一条「删除」+ 二次确认（守 `实现约束.md` §4-2） |
-| `ui/screen/add/QuickAddScreen.kt` | 「已连续录入 N 件」行改为可点入口（新增回调） |
-| `ui/screen/add/QuickAddViewModel.kt` | 会话批次列表（内存）+ `setCategoryForItems` + 页内两态开关；`sessionCount` 语义**不变** |
+| `ui/screen/HomeScreen.kt` | 「更多」折叠区由 3 项 → **4 项**（+ 回收站） |
+| `ui/screen/ItemDetailScreen.kt` / `ui/vm/ItemDetailViewModel.kt` | 「⋯更多」补一条「删除」+ 二次确认（守 `实现约束.md` §4-2） |
+| `ui/screen/QuickAddScreen.kt` | 「已连续录入 N 件」行改为可点入口（新增回调） |
+| `ui/vm/QuickAddViewModel.kt` | 会话批次列表（内存）+ `setCategoryForItems` + 页内两态开关；`sessionCount` 语义**不变** |
 | `app/src/test/.../FakeDaos.kt` | 假 DAO 补 6 个新方法（**只加不删**） |
 | `app/src/androidTest/.../MigrationsTest.kt` | 加 v3 → v4 用例（**只加不删**） |
 
-> **反向不动**：`ui/theme/*`（永久浅色 + 字号锁定）、`MainActivity.kt`（`enableEdgeToEdge` 与容器级避让）、`di/{AppModule, RepositoryModule}.kt`（无新绑定）、`domain/search/*`（**检索侧一行不改**——已删除物品在 `observeAll` 就被过滤掉，索引里根本不会出现它们）、`util/*`、`data/memory/BuiltInData.kt`（除**新增一个保留期常量** `RECYCLE_RETENTION_DAYS = 90`）、`SeedCallback.kt`（不预置 `last_purge_at`）、`ui/screen/stats/*`（C-1 / C-4 / C-5 三块口径不变）、`ui/screen/{search,location,category,settings,itemedit}/*`。
+> **反向不动**：`ui/theme/*`（永久浅色 + 字号锁定）、`MainActivity.kt`（`enableEdgeToEdge` 与容器级避让）、`di/{AppModule, RepositoryModule}.kt`（无新绑定）、`domain/search/*`（**检索侧一行不改**——已删除物品在 `observeAll` 就被过滤掉，索引里根本不会出现它们）、`util/*`、`data/memory/BuiltInData.kt`（除**新增一个保留期常量** `RECYCLE_RETENTION_DAYS = 90`）、`SeedCallback.kt`（不预置 `last_purge_at`）、`ui/screen/manage/StatsScreen.kt` + `ui/vm/StatsViewModel.kt`（C-1 / C-4 / C-5 三块口径不变）、`ui/screen/` 的搜索 / 位置浏览 / 物品编辑三页与 `ui/screen/manage/` 的分类 / 设置两页。
 
 > **为什么检索侧一行不改**：`SearchIndex` 的输入来自 `ItemRepository.observeSearchDocs()`，而它读的是 `ItemDao.observeAll()`（现已带过滤）。**过滤发生在唯一的数据出口**，因此搜索、位置浏览、统计、计数四条路径**同时**生效，不需要在四处各补一次——这也正是不变量 12 存在的意义。
 

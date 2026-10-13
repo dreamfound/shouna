@@ -1,5 +1,6 @@
-package com.dream.shouna.ui.screen.category
+package com.dream.shouna.ui.screen.manage
 
+import com.dream.shouna.ui.vm.CategoryManageViewModel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

@@ -1,5 +1,6 @@
-package com.dream.shouna.ui.screen.photoai
+package com.dream.shouna.ui.screen.ai
 
+import com.dream.shouna.ui.vm.PhotoAiIntakeViewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer

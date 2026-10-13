@@ -1,5 +1,6 @@
-package com.dream.shouna.ui.screen.stats
+package com.dream.shouna.ui.screen.manage
 
+import com.dream.shouna.ui.vm.StatsViewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

@@ -1,5 +1,6 @@
-package com.dream.shouna.ui.screen.search
+package com.dream.shouna.ui.screen
 
+import com.dream.shouna.ui.vm.SearchViewModel
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer

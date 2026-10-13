@@ -1,4 +1,4 @@
-package com.dream.shouna.ui.screen.photoai
+package com.dream.shouna.ui.vm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
